@@ -33,7 +33,7 @@ kotlin {
 }
 
 application {
-    mainClass.set("org.kvxd.gogolmc.MainKt")
+    mainClass.set("org.kvxd.optraix.MainKt")
 }
 
 tasks.test {

@@ -1,0 +1,39 @@
+package org.kvxd.optraix.world
+
+import org.kvxd.optraix.block.Blocks
+
+class Chunk(val x: Int, val z: Int) {
+
+    val sections = arrayOfNulls<ChunkSection>(SECTION_COUNT)
+    val blockEntities = HashMap<Int, BlockEntity>()
+
+    fun sectionFor(y: Int, create: Boolean): ChunkSection? {
+        val index = (y - WORLD_MIN_Y) shr 4
+        if (index < 0 || index >= SECTION_COUNT) return null
+        var section = sections[index]
+        if (section == null && create) {
+            section = ChunkSection()
+            sections[index] = section
+        }
+        return section
+    }
+
+    fun getBlock(localX: Int, y: Int, localZ: Int): Int {
+        val section = sectionFor(y, false) ?: return Blocks.airState
+        return section.get(index(localX, y and 15, localZ))
+    }
+
+    fun setBlock(localX: Int, y: Int, localZ: Int, state: Int): Boolean {
+        if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) return false
+        if (state == Blocks.airState && sectionFor(y, false) == null) return false
+        val section = sectionFor(y, true) ?: return false
+        return section.set(index(localX, y and 15, localZ), state)
+    }
+
+    fun blockEntityKey(localX: Int, y: Int, localZ: Int): Int =
+        ((y - WORLD_MIN_Y) shl 8) or (localZ shl 4) or localX
+
+    companion object {
+        fun index(x: Int, y: Int, z: Int): Int = (y shl 8) or (z shl 4) or x
+    }
+}

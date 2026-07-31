@@ -24,32 +24,32 @@ fun tool(
     configure()
 }
 
-tool("bench", "org.kvxd.gogolmc.bench.RedstoneBench", "redstone engine throughput benchmark") {
+tool("bench", "org.kvxd.optraix.bench.RedstoneBench", "redstone engine throughput benchmark") {
     jvmArgs(propertyArgs("benchJvm"))
 }
 
-tool("abbench", "org.kvxd.gogolmc.bench.Opt3xAbBench", "opt3x chain fusion A/B benchmark")
+tool("abbench", "org.kvxd.optraix.bench.OptraIxAbBench", "optraix chain fusion A/B benchmark")
 
-tool("worldbench", "org.kvxd.gogolmc.bench.WorldAbBench", "opt3x chain fusion A/B benchmark on a saved world")
+tool("worldbench", "org.kvxd.optraix.bench.WorldAbBench", "optraix chain fusion A/B benchmark on a saved world")
 
-tool("tickbench", "org.kvxd.gogolmc.bench.TickLoopBench", "server tick loop overhead benchmark")
+tool("tickbench", "org.kvxd.optraix.bench.TickLoopBench", "server tick loop overhead benchmark")
 
 tool(
     "benchprof",
-    "org.kvxd.gogolmc.bench.RedstoneBench",
-    "opt3x benchmark under Java Flight Recorder",
+    "org.kvxd.optraix.bench.RedstoneBench",
+    "optraix benchmark under Java Flight Recorder",
     defaultArgs = "60 40 30",
 ) {
-    systemProperty("opt3xOnly", "1")
-    val recording = layout.buildDirectory.file("opt3x.jfr").get().asFile
+    systemProperty("optraixOnly", "1")
+    val recording = layout.buildDirectory.file("optraix.jfr").get().asFile
     doFirst { recording.parentFile?.mkdirs() }
     jvmArgs("-XX:StartFlightRecording=duration=60s,filename=$recording,settings=profile")
 }
 
 tool(
     "importworld",
-    "org.kvxd.gogolmc.tools.AnvilImport",
-    "convert a vanilla anvil world into a gogolmc world file",
+    "org.kvxd.optraix.tools.AnvilImport",
+    "convert a vanilla anvil world into a optraix world file",
     taskGroup = "tools",
     argsProperty = "importArgs",
 )
