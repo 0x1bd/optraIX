@@ -113,4 +113,36 @@ class Opt3xEngineTest {
             }
         }
     }
+
+    @Test
+    fun savingWhileCompiledKeepsPendingTicks() {
+        val (world, lever) = lampWorld()
+        val engine = Opt3xEngine()
+        assertTrue(engine.compile(world), "compile should succeed: ${engine.lastError}")
+
+        assertTrue(engine.onUse(world, lever))
+        assertTrue(engine.circuit!!.pendingTicks > 0, "toggling the lever should leave work in flight")
+        assertEquals(0, world.snapshotTicks().size, "a compiled circuit holds its ticks internally")
+
+        engine.decompile(world)
+        assertTrue(world.snapshotTicks().isNotEmpty(), "decompile must hand pending ticks back to the world")
+
+        val file = java.io.File.createTempFile("gogol-save", ".dat")
+        file.deleteOnExit()
+        org.kvxd.gogolmc.world.WorldStorage.save(world, file)
+
+        val restored = GameWorld(WorldGenerator(Blocks.airState, 0))
+        org.kvxd.gogolmc.world.WorldStorage.load(restored, file)
+        assertEquals(
+            world.snapshotTicks().size,
+            restored.snapshotTicks().size,
+            "saved world must carry the in-flight ticks",
+        )
+
+        assertTrue(engine.compile(restored), "recompile after save should succeed")
+        repeat(6) { engine.tickWorld(restored) }
+
+        val lamp = BlockPos(6, 1, 0)
+        assertTrue(BlockStates.lit[restored.getBlock(lamp)], "lamp should be lit after the round trip")
+    }
 }

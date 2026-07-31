@@ -52,7 +52,11 @@ class Opt3xEngine : RedstoneEngine {
         active.exportPendingTicks(world)
     }
 
+    var changeCounter: Long = 0
+        private set
+
     private fun invalidate(world: World) {
+        changeCounter++
         if (circuit != null && world is GameWorld) decompile(world)
     }
 

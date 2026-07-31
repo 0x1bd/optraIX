@@ -28,9 +28,8 @@ class Opt3xCircuit internal constructor(
     private val chainIndexOf: IntArray,
     private val chainOffset: IntArray,
     private val chainLength: IntArray,
-    private val chainInfo: IntArray,
-    private val chainActive: LongArray,
-    private val linkState: ByteArray,
+    private val chainState: LongArray,
+    private val chainConst: LongArray,
     private val linkDelay: ByteArray,
     private val linkPos: LongArray,
     private val linkFacing: ByteArray,
@@ -39,7 +38,7 @@ class Opt3xCircuit internal constructor(
 
     val chainCount: Int get() = chainOffset.size
 
-    val fusedLinks: Int get() = linkState.size
+    val fusedLinks: Int get() = linkOn.size
 
     private val defCounts = ByteArray(count * 16)
     private val sideCounts = ByteArray(count * 16)
@@ -47,6 +46,14 @@ class Opt3xCircuit internal constructor(
     private val scheduler = TickScheduler(count)
     private val consumerQueue = IntQueue(1024)
     private val queuedFlag = BooleanArray(count)
+    private val chainQueued = BooleanArray(chainOffset.size)
+    private val chainInputBits = LongArray((chainOffset.size + 63) ushr 6)
+    private val chainShadow = LongArray(chainOffset.size)
+    private var chainPending = LongArray(chainOffset.size + 1)
+    private var chainPendingCount = 0
+    private var chainRunning = LongArray(chainOffset.size + 1)
+    private val chainEmitData = Array(TickScheduler.Priorities) { IntArray(chainOffset.size + 1) }
+    private val chainEmitSize = IntArray(TickScheduler.Priorities)
     private val dirty = BooleanArray(count)
     private val dirtyList = IntStack(1024)
     private val soundEvents = IntStack(16)
@@ -62,7 +69,7 @@ class Opt3xCircuit internal constructor(
 
     val edgeCount: Int get() = edges.size
 
-    val pendingTicks: Int get() = scheduler.queued
+    val pendingTicks: Int get() = scheduler.queued + chainPendingCount
 
     init {
         for (node in 0 until count) {
@@ -233,22 +240,22 @@ class Opt3xCircuit internal constructor(
             }
 
             NodeType.Chain -> {
-                val info = chainInfo[node]
-                val offset = info ushr 8
-                val packed = linkState[offset].toInt()
-                val out = packed and 1
-                val timer = packed ushr 1
-                val kind = linkDelay[offset].toInt()
-                val input = if (defPowered(word)) 1 else 0
-                if (timer == 0 && input != out) {
-                    val delay = if ((kind and 0x80) != 0) 1 else (kind and 7)
-                    linkState[offset] = (out or (delay shl 1)).toByte()
-                    chainActive[node] = chainActive[node] or 1L
+                val chain = chainIndexOf[node]
+                val base = chain shl 2
+                val t0 = chainState[base + 1]
+                val t1 = chainState[base + 2]
+                val t2 = chainState[base + 3]
+                val powered = chainState[base]
+                val input = if (defPowered(word)) 1L else 0L
+                val slot = chain ushr 6
+                chainInputBits[slot] =
+                    (chainInputBits[slot] and (1L shl chain).inv()) or (input shl chain)
+                if (((t0 or t1 or t2) and 1L) == 0L && (powered and 1L) != input) {
+                    chainState[base + 1] = t0 or (chainConst[base + 1] and 1L)
+                    chainState[base + 2] = t1 or (chainConst[base + 2] and 1L)
+                    chainState[base + 3] = t2 or (chainConst[base + 3] and 1L)
                     markDirty(node)
-                    if (!scheduler.isPending(node)) {
-                        val last = linkState[offset + (info and 0xFF) - 1].toInt()
-                        scheduler.schedule(node, 1, chainPriority(node, word, offset, info and 0xFF, last))
-                    }
+                    if (!chainQueued[chain]) chainWake(node, chain)
                 }
             }
 
@@ -314,94 +321,111 @@ class Opt3xCircuit internal constructor(
         return sides == input && (word and CompareBit) != 0L
     }
 
-    private fun chainPriority(node: Int, word: Long, offset: Int, length: Int): Int {
-        if ((word and FrontDiodeBit) != 0L) return 0
-        val last = offset + length - 1
-        if ((linkState[last].toInt() and 7) != 1) return 0
-        val tailPowered = linkState[last].toInt() ushr 3
-        val tailInput = if (length == 1) {
-            if (defPowered(word)) 1 else 0
-        } else {
-            linkState[last - 1].toInt() ushr 3
-        }
-        return if (tailPowered == 1 && tailInput == 0) 1 else 2
+    private fun chainWake(node: Int, chain: Int) {
+        val length = chainLength[chain]
+        val tailOn = linkOn[chainOffset[chain] + length - 1].toLong()
+        val on = if ((chainState[chain shl 2] ushr (length - 1)) and 1L != 0L) 1L else 0L
+        chainPending[chainPendingCount++] = node.toLong() or (length.toLong() shl 26) or
+            (chain.toLong() shl 32) or (tailOn shl 58) or (on shl 62)
+        chainQueued[chain] = true
     }
 
-    private fun tickChain(node: Int, word: Long) {
-        val info = chainInfo[node]
-        val offset = info ushr 8
-        val length = info and 0xFF
-        val chainInput = if (defPowered(word)) 1 else 0
-        var mask = chainActive[node]
-        var newActive = 0L
-        var changed = false
-        var visits = 0
+    private fun runChainPass() {
+        val swap = chainRunning
+        chainRunning = chainPending
+        chainPending = swap
+        val size = chainPendingCount
+        chainPendingCount = 0
+        val list = chainRunning
+        val pending = chainPending
+        val words = chainState
+        val fixed = chainConst
+        val emitSize = chainEmitSize
+        val emitData = chainEmitData
+        val inputs = chainInputBits
+        var visits = 0L
+        var write = 0
+        var read = 0
+        while (read < size) {
+            val entry = list[read]
+            val node = (entry and 0x03FFFFFFL).toInt()
+            val length = ((entry ushr 26) and 0x3FL).toInt()
+            val chain = ((entry ushr 32) and 0x03FFFFFFL).toInt()
+            visits += length
 
-        while (mask != 0L) {
-            val i = java.lang.Long.numberOfTrailingZeros(mask)
-            mask = mask and (mask - 1)
-            visits++
-            val slot = offset + i
-            val packed = linkState[slot].toInt()
-            var powered = packed and 1
-            var timer = packed ushr 1
-            val kind = linkDelay[slot].toInt()
-            val comparator = (kind and 0x80) != 0
-            val delay = kind and 7
-            val input = if (i == 0) chainInput else (linkState[slot - 1].toInt() and 1)
+            val base = chain shl 2
+            val cin = (inputs[chain ushr 6] ushr chain) and 1L
+            val powered = words[base]
+            val t0 = words[base + 1]
+            val t1 = words[base + 2]
+            val t2 = words[base + 3]
 
-            if (timer > 0) {
-                timer--
-                if (timer == 0) {
-                    if (comparator) {
-                        powered = input
-                    } else if (powered == 1 && input == 0) {
-                        powered = 0
-                    } else if (powered == 0) {
-                        if (input == 0) timer = delay
-                        powered = 1
-                    }
-                }
+            val expired = t0 and t1.inv() and t2.inv()
+            val running = t0 or t1 or t2
+            val idle = running.inv() or expired
+            val n0 = t0 xor running
+            val borrow0 = t0.inv() and running
+            val n1 = t1 xor borrow0
+            val n2 = t2 xor (t1.inv() and borrow0)
+
+            val compare = expired and fixed[base]
+            val plain = expired xor compare
+            val generate = (powered xor plain) and compare.inv()
+            val carryIn = generate or compare or (plain and powered)
+            val next = ((carryIn + generate + cin) xor carryIn xor generate) ushr 1
+
+            val rearm = idle and (((next shl 1) or cin) xor next)
+            val u0 = n0 or (fixed[base + 1] and rearm)
+            val u1 = n1 or (fixed[base + 2] and rearm)
+            val u2 = n2 or (fixed[base + 3] and rearm)
+
+            words[base] = next
+            words[base + 1] = u0
+            words[base + 2] = u1
+            words[base + 3] = u2
+
+            read++
+            if (next != powered) markDirty(node)
+
+            val tail = length - 1
+            var updated = entry
+            if (((next ushr tail) xor (entry ushr 62)) and 1L != 0L) {
+                updated = entry xor (1L shl 62)
+                val word = state[node]
+                val out = ((entry ushr 58) and 0xFL).toInt() and -((next ushr tail) and 1L).toInt()
+                val front = ((word ushr 10) and 1L).toInt()
+                val tailOn = ((powered ushr tail) and 1L).toInt()
+                val tailIn = ((powered ushr ((tail - 1) and 63)) and 1L).toInt()
+                val priority = (2 - (tailOn and (tailIn xor 1))) and (front - 1)
+                val slot = emitSize[priority]
+                emitData[priority][slot] = node or (out shl 26)
+                emitSize[priority] = slot + 1
             }
-            if (timer == 0 && input != powered) timer = if (comparator) 1 else delay
 
-            val updated = powered or (timer shl 1)
-            if (updated != packed) {
-                linkState[slot] = updated.toByte()
-                changed = true
-                if ((packed and 1) != powered && i + 1 < length) mask = mask or (1L shl (i + 1))
+            if ((u0 or u1 or u2) != 0L) {
+                pending[write++] = updated
+            } else {
+                chainQueued[chain] = false
             }
-            if (timer != 0) newActive = newActive or (1L shl i)
         }
-
-        if (Stats) linkVisits += visits
-        chainActive[node] = newActive
-
-        val lastSlot = offset + length - 1
-        val lastState = linkState[lastSlot].toInt()
-        if (changed) markDirty(node)
-        if (newActive != 0L) scheduler.schedule(node, 1, chainPriority(node, word, offset, length, lastState))
-        emit(node, if ((lastState and 1) == 1) linkOn[lastSlot].toInt() else 0)
+        chainPendingCount = write
+        if (Stats) {
+            nodeTicks += size
+            linkVisits += visits
+        }
     }
 
-    private fun chainPriority(node: Int, word: Long, offset: Int, length: Int, lastState: Int): Int {
+    private fun chainWakePriority(word: Long, powered: Long, length: Int, cin: Long): Int {
         if ((word and FrontDiodeBit) != 0L) return 0
-        if ((lastState ushr 1) != 1) return 0
-        val lastSlot = offset + length - 1
-        val tailInput = if (length == 1) {
-            if (defPowered(word)) 1 else 0
-        } else {
-            linkState[lastSlot - 1].toInt() and 1
-        }
-        return if ((lastState and 1) == 1 && tailInput == 0) 1 else 2
+        val tail = length - 1
+        val tailInput = if (length == 1) cin else (powered ushr (tail - 1)) and 1L
+        return if (((powered ushr tail) and 1L) == 1L && tailInput == 0L) 1 else 2
     }
 
     private fun tickNode(node: Int) {
         if (Stats) nodeTicks++
         val word = state[node]
         when ((word and 0xFL).toInt()) {
-            NodeType.Chain -> tickChain(node, word)
-
             NodeType.Repeater -> {
                 if ((word and LockedBit) != 0L) return
                 val shouldBePowered = defPowered(word)
@@ -471,12 +495,19 @@ class Opt3xCircuit internal constructor(
     }
 
     fun tick() {
-        if (scheduler.queued == 0) {
-            scheduler.nextBucket()
-            return
-        }
         val bucket = scheduler.nextBucket()
+        if (scheduler.queued == 0 && chainPendingCount == 0) return
+        runChainPass()
         for (priority in 0 until TickScheduler.Priorities) {
+            val emits = chainEmitData[priority]
+            val emitCount = chainEmitSize[priority]
+            chainEmitSize[priority] = 0
+            var slot = 0
+            while (slot < emitCount) {
+                val packed = emits[slot++]
+                emit(packed and TargetMask, (packed ushr 26) and 0xF)
+                drainUpdates()
+            }
             val items = scheduler.itemsAt(bucket, priority)
             val size = scheduler.sizeAt(bucket, priority)
             var cursor = 0
@@ -500,9 +531,18 @@ class Opt3xCircuit internal constructor(
         scheduler.forEachPending { node, delay, priority ->
             world.scheduleTick(BlockPos.unpack(posKey[node]), delay, TickPriority.entries[priority])
         }
+        for (slot in 0 until chainPendingCount) {
+            val node = (chainPending[slot] and 0x03FFFFFFL).toInt()
+            world.scheduleTick(BlockPos.unpack(posKey[node]), 1, TickPriority.Highest)
+        }
     }
 
     internal fun importPendingTick(node: Int, delay: Int, priority: Int) {
+        if ((state[node] and 0xFL).toInt() == NodeType.Chain) {
+            val chain = chainIndexOf[node]
+            if (!chainQueued[chain]) chainWake(node, chain)
+            return
+        }
         scheduler.schedule(node, delay.coerceIn(1, TickScheduler.WheelSize - 1), priority)
     }
 
@@ -579,14 +619,18 @@ class Opt3xCircuit internal constructor(
     }
 
     private fun writeChain(world: World, node: Int) {
-        val info = chainInfo[node]
-        val offset = info ushr 8
-        val length = info and 0xFF
-        for (i in 0 until length) {
+        val chain = chainIndexOf[node]
+        val offset = chainOffset[chain]
+        val powered = chainState[chain shl 2]
+        var pendingLinks = powered xor chainShadow[chain]
+        chainShadow[chain] = powered
+        while (pendingLinks != 0L) {
+            val i = java.lang.Long.numberOfTrailingZeros(pendingLinks)
+            pendingLinks = pendingLinks and (pendingLinks - 1)
             val slot = offset + i
             val pos = BlockPos.unpack(linkPos[slot])
             val kind = linkDelay[slot].toInt()
-            val on = (linkState[slot].toInt() and 1) == 1
+            val on = ((powered ushr i) and 1L) != 0L
             val out = if (on) linkOn[slot].toInt() else 0
             if ((kind and 0x80) != 0) {
                 world.setBlock(
@@ -641,6 +685,9 @@ class Opt3xCircuit internal constructor(
     }
 
     fun writeAll(world: World) {
+        for (chain in chainShadow.indices) {
+            chainShadow[chain] = chainState[chain shl 2] xor ((1L shl chainLength[chain]) - 1L)
+        }
         for (node in 0 until count) {
             if (typeOf(node) == NodeType.Chain) {
                 writeChain(world, node)

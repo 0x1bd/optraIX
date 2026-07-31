@@ -24,7 +24,7 @@ object Opt3xCompiler {
     fun compile(
         world: GameWorld,
         eliminateWire: Boolean = true,
-        fuseChains: Boolean = true,
+        fuseChains: Boolean = false,
     ): Opt3xCircuit {
         val graph = Opt3xGraph()
         scan(world, graph)
@@ -525,29 +525,33 @@ object Opt3xCompiler {
 
         val edges = IntArray(total)
         val chainIndexOf = IntArray(count) { -1 }
-        val chainNodes = graph.nodes.filter { it.chainLinks != null }
+        val chainNodes = graph.nodes.filter { it.chainLinks != null }.sortedBy { rank[it.id] }
         val chainOffset = IntArray(chainNodes.size)
         val chainLength = IntArray(chainNodes.size)
         val totalLinks = chainNodes.sumOf { it.chainLinks!!.size }
-        val linkState = ByteArray(totalLinks)
         val linkDelay = ByteArray(totalLinks)
         val linkPos = LongArray(totalLinks)
         val linkFacing = ByteArray(totalLinks)
         val linkOn = ByteArray(totalLinks)
-        val chainInfo = IntArray(count)
-        val chainActive = LongArray(count)
+        val chainState = LongArray(chainNodes.size * 4)
+        val chainConst = LongArray(chainNodes.size * 4)
         var linkCursor = 0
         for ((chainIndex, node) in chainNodes.withIndex()) {
             val links = node.chainLinks!!
             chainIndexOf[rank[node.id]] = chainIndex
             chainOffset[chainIndex] = linkCursor
             chainLength[chainIndex] = links.size
-            chainInfo[rank[node.id]] = (linkCursor shl 8) or links.size
+            val base = chainIndex * 4
             for ((linkIndex, link) in links.withIndex()) {
                 val comparator = link.type == NodeType.Comparator
-                linkState[linkCursor] = (if (link.output > 0) 1 else 0).toByte()
-                linkDelay[linkCursor] = ((if (comparator) 1 else link.delay) or
-                    (if (comparator) 0x80 else 0)).toByte()
+                val delay = if (comparator) 1 else link.delay
+                val bit = 1L shl linkIndex
+                if (link.output > 0) chainState[base] = chainState[base] or bit
+                if (comparator) chainConst[base] = chainConst[base] or bit
+                if (delay and 1 != 0) chainConst[base + 1] = chainConst[base + 1] or bit
+                if (delay and 2 != 0) chainConst[base + 2] = chainConst[base + 2] or bit
+                if (delay and 4 != 0) chainConst[base + 3] = chainConst[base + 3] or bit
+                linkDelay[linkCursor] = (delay or (if (comparator) 0x80 else 0)).toByte()
                 linkOn[linkCursor] = link.onStrength.toByte()
                 linkPos[linkCursor] = link.pos.asLong()
                 linkFacing[linkCursor] = link.facing.toByte()
@@ -608,9 +612,8 @@ object Opt3xCompiler {
             chainIndexOf = chainIndexOf,
             chainOffset = chainOffset,
             chainLength = chainLength,
-            chainInfo = chainInfo,
-            chainActive = chainActive,
-            linkState = linkState,
+            chainState = chainState,
+            chainConst = chainConst,
             linkDelay = linkDelay,
             linkPos = linkPos,
             linkFacing = linkFacing,

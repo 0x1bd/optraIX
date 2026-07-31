@@ -5,7 +5,7 @@ import org.kvxd.gogolmc.block.property.ComparatorMode
 object ChainFuser {
 
     const val MinLength = 3
-    const val MaxLength = 64
+    const val MaxLength = 63
 
     fun fuse(graph: Opt3xGraph, minLength: Int = MinLength): Opt3xGraph {
         val count = graph.nodes.size
@@ -26,9 +26,13 @@ object ChainFuser {
         val chainOf = IntArray(count) { -1 }
         val chains = ArrayList<List<GraphNode>>()
 
-        for (node in graph.nodes) {
+        var progress = true
+        while (progress) {
+            progress = false
+            for (node in graph.nodes) {
             if (!isLink[node.id] || chainOf[node.id] >= 0) continue
-            if (isLink[node.inputs[0].source]) continue
+            val previous = node.inputs[0].source
+            if (isLink[previous] && chainOf[previous] < 0) continue
 
             val links = ArrayList<GraphNode>()
             var current: GraphNode? = node
@@ -60,6 +64,8 @@ object ChainFuser {
             val index = chains.size
             for (link in links) chainOf[link.id] = index
             chains += links
+            progress = true
+            }
         }
 
         if (chains.isEmpty()) return graph

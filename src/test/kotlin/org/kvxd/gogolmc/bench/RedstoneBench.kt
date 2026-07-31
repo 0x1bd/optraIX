@@ -134,12 +134,15 @@ object RedstoneBench {
         println("nodes             ${compiled.count}")
         println("edges             ${compiled.edgeCount}")
 
+        val opt3xTicks = maxOf(ticks * 20, 12_000_000 / maxOf(1, circuit.components / 100))
+
         println()
-        println("warmup opt3x")
-        repeat(8) { runOpt3x(compiled, leverNodes, ticks * 20, TogglePeriod) }
+        println("warmup opt3x ($opt3xTicks ticks per run)")
+        repeat(6) { runOpt3x(compiled, leverNodes, opt3xTicks, TogglePeriod) }
 
         val runs = ArrayList<Result>()
-        repeat(9) { runs += runOpt3x(compiled, leverNodes, ticks * 20, TogglePeriod) }
+        repeat(9) { runs += runOpt3x(compiled, leverNodes, opt3xTicks, TogglePeriod) }
+        println("opt3x order       " + runs.joinToString(" ") { "%.0f".format(it.tps) })
         val sorted = runs.map { it.tps }.sorted()
         val median = sorted[sorted.size / 2]
         val best = sorted.last()

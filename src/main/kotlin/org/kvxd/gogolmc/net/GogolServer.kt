@@ -161,6 +161,8 @@ class GogolServer(val config: ServerConfig) {
         println("gogolmc listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
 
+        (engine as? Opt3xEngine)?.let { compileRedstone(it) }
+
         startGameLoop()
 
         scope.launch(Dispatchers.Default) {
@@ -186,9 +188,80 @@ class GogolServer(val config: ServerConfig) {
         for (player in players) profiles.put(player)
         runCatching { profiles.save() }
             .onFailure { Log.error("players", "save failed", it) }
-        return runCatching { WorldStorage.save(world, config.worldFile) }
+        val opt3x = engine as? Opt3xEngine
+        opt3x?.decompile(world)
+        val saved = runCatching { WorldStorage.save(world, config.worldFile) }
             .onFailure { Log.error("world", "save failed", it) }
             .getOrDefault(0)
+        if (running && opt3x != null) compileRedstone(opt3x)
+        return saved
+    }
+
+    fun compileRedstone(target: Opt3xEngine) {
+        compiling = true
+        refreshSidebar(force = true)
+        val ok = target.compile(world)
+        compiling = false
+        if (ok) {
+            val circuit = target.circuit
+            println("[opt3x] compiled ${circuit?.count} nodes, ${circuit?.edgeCount} edges in ${target.compileMillis}ms")
+        } else {
+            println("[opt3x] compile failed: ${target.lastError} (running interpreted)")
+        }
+        refreshSidebar(force = true)
+    }
+
+    private var compiling = false
+    private var lastEditCounter = 0L
+    private var lastEditAt = 0L
+    private var lastSidebar = 0L
+
+    private fun maintainRedstoneCompile() {
+        val opt3x = engine as? Opt3xEngine ?: return
+        val counter = opt3x.changeCounter
+        val now = System.currentTimeMillis()
+        if (counter != lastEditCounter) {
+            lastEditCounter = counter
+            lastEditAt = now
+            return
+        }
+        if (lastEditAt == 0L || opt3x.compiled) return
+        if (now - lastEditAt < RecompileDelayMillis) return
+        lastEditAt = 0L
+        compileRedstone(opt3x)
+    }
+
+    private fun refreshSidebar(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastSidebar < SidebarIntervalMillis) return
+        lastSidebar = now
+        val opt3x = engine as? Opt3xEngine
+        val circuit = opt3x?.circuit
+        val state = when {
+            compiling -> "compiling" to Text.Yellow
+            circuit != null -> "compiled" to Text.Green
+            opt3x?.lastError != null -> "failed" to Text.Red
+            opt3x != null -> "interpreted" to Text.Yellow
+            else -> engine.name to Text.Gray
+        }
+        val lines = ArrayList<Sidebar.Line>(6)
+        lines += Sidebar.Line("tps", "tps ", "%.1f".format(measuredTps), tpsColor())
+        lines += Sidebar.Line("mspt", "mspt ", "%.2f".format(averageMspt), Text.White)
+        lines += Sidebar.Line("redstone", "redstone ", state.first, state.second)
+        if (circuit != null) {
+            lines += Sidebar.Line("nodes", "nodes ", circuit.count.toString(), Text.Aqua)
+            lines += Sidebar.Line("compile", "built ", "${opt3x.compileMillis}ms", Text.Aqua)
+        }
+        sidebar.update(players, lines)
+    }
+
+    private fun tpsColor(): String {
+        if (targetTps <= 0) return Text.Aqua
+        return when {
+            measuredTps >= targetTps * 0.95 -> Text.Green
+            measuredTps >= targetTps * 0.7 -> Text.Yellow
+            else -> Text.Red
+        }
     }
 
     fun tpsLabel(): String = if (targetTps <= 0) "unlimited" else targetTps.toString()
@@ -275,6 +348,8 @@ class GogolServer(val config: ServerConfig) {
         broadcastMovement()
         maintainConnections()
         maintainSelectionOutlines()
+        maintainRedstoneCompile()
+        refreshSidebar()
         maintainAutosave()
     }
 
@@ -372,6 +447,8 @@ class GogolServer(val config: ServerConfig) {
             if (player.showSelection) SelectionOutline.draw(player)
         }
     }
+
+    private val sidebar = Sidebar()
 
     private var lastKeepAlive: Long = 0
     private var lastAutosave: Long = System.currentTimeMillis()
@@ -515,6 +592,7 @@ class GogolServer(val config: ServerConfig) {
         players.add(player)
         onlineCount = players.size
         sendJoinSequence(player)
+        sidebar.install(player)
     }
 
     private fun sendJoinSequence(player: Player) {
@@ -869,6 +947,8 @@ class GogolServer(val config: ServerConfig) {
         const val PlayerEntityTypeId = 124
         const val KeepAliveIntervalMillis = 5_000L
         const val SelectionOutlineIntervalMillis = 1_000L
+        const val RecompileDelayMillis = 3_000L
+        const val SidebarIntervalMillis = 500L
         const val WaitForChunksReason: Short = 13
         const val BatchTargetNanos = 500_000L
         const val MaxBatch = 65_536

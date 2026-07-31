@@ -45,7 +45,7 @@ tasks.register<JavaExec>("bench") {
     description = "redstone engine throughput benchmark"
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("org.kvxd.gogolmc.bench.RedstoneBench")
-    jvmArgs("-Xmx6g")
+    jvmArgs(listOf("-Xmx6g") + ((project.findProperty("benchJvm") as String? ?: "").split(" ").filter { it.isNotEmpty() }))
     args = (project.findProperty("benchArgs") as String? ?: "").split(" ").filter { it.isNotEmpty() }
 }
 
@@ -63,5 +63,5 @@ tasks.register<JavaExec>("benchprof") {
     systemProperty("opt3xOnly", "1")
     jvmArgs("-Xmx6g",
         "-XX:StartFlightRecording=duration=60s,filename=/tmp/claude-1000/-home-kvxd-IdeaProjects-gogolmc/f869ba00-614b-4c62-a55c-2c3ae049ac4a/scratchpad/opt3x.jfr,settings=profile")
-    args = listOf("60", "40", "30")
+    args = (project.findProperty("benchArgs") as String? ?: "60 40 30").split(" ")
 }

@@ -36,25 +36,29 @@ class Opt3xCommand : GogolCommand {
 
     private fun compile(source: CommandSource) {
         val engine = engineOf(source)
-        val world = source.server.world
+        val server = source.server
         source.reply("compiling...")
-        if (engine.compile(world)) {
-            val circuit = engine.circuit ?: return
-            source.success("compile finished (${engine.compileMillis}ms)")
-            source.reply("  nodes:   ${circuit.count}")
-            source.reply("  edges:   ${circuit.edgeCount}")
-            source.reply("  pending: ${circuit.pendingTicks}")
-        } else {
-            source.reply("compile failed: ${engine.lastError}")
+        server.submit {
+            if (engine.compile(server.world)) {
+                val circuit = engine.circuit ?: return@submit
+                source.success("compile finished (${engine.compileMillis}ms)")
+                source.reply("  nodes:   ${circuit.count}")
+                source.reply("  edges:   ${circuit.edgeCount}")
+                source.reply("  pending: ${circuit.pendingTicks}")
+            } else {
+                source.reply("compile failed: ${engine.lastError}")
+            }
         }
     }
 
     private fun reset(source: CommandSource) {
         val server = source.server
-        val engine = server.engine
-        if (engine is Opt3xEngine) engine.decompile(server.world)
-        server.useEngine(MchprsRedstone)
-        source.success("redstone engine reset to mchprs")
+        server.submit {
+            val engine = server.engine
+            if (engine is Opt3xEngine) engine.decompile(server.world)
+            server.useEngine(MchprsRedstone)
+            source.success("redstone engine reset to mchprs")
+        }
     }
 
     private fun status(source: CommandSource) {
