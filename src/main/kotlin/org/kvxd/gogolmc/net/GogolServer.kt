@@ -1,0 +1,836 @@
+package org.kvxd.gogolmc.net
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.kvxd.gogolmc.Log
+import org.kvxd.gogolmc.ServerConfig
+import org.kvxd.gogolmc.block.property.BlockFace
+import org.kvxd.gogolmc.block.Blocks
+import org.kvxd.gogolmc.block.ItemStack
+import org.kvxd.gogolmc.block.Items
+import org.kvxd.gogolmc.command.CommandRegistry
+import org.kvxd.gogolmc.interaction.Interaction
+import org.kvxd.gogolmc.interaction.UseOnBlockContext
+import org.kvxd.gogolmc.player.Player
+import org.kvxd.gogolmc.player.PlayerProfileStore
+import org.kvxd.gogolmc.redstone.RedstoneEngine
+import org.kvxd.gogolmc.redstone.mchprs.MchprsRedstone
+import org.kvxd.gogolmc.world.BlockEntity
+import org.kvxd.gogolmc.world.BlockEntityNbt
+import org.kvxd.gogolmc.world.BlockPos
+import org.kvxd.gogolmc.world.GameWorld
+import org.kvxd.gogolmc.world.WorldStorage
+import org.kvxd.kmcprotocol.core.ProtocolState
+import org.kvxd.kmcprotocol.generated.Protocols
+import org.kvxd.kmcprotocol.network.server.Server
+import org.kvxd.kmcprotocol.network.server.ServerSession
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundFinishConfigurationPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundRegistryDataPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.clientbound.ClientboundCompressPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.clientbound.ClientboundSuccessPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.serverbound.ServerboundLoginStartPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundAbilitiesPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundAcknowledgePlayerDiggingPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundBlockChangePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundChunkBatchFinishedPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundChunkBatchStartPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundEntityDestroyPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundEntityHeadRotationPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundEntityTeleportPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundEntityUpdateAttributesPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundGameStateChangePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundHeldItemSlotPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundKeepAlivePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundLoginPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundMultiBlockChangePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundOpenSignEntityPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPlayerInfoPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPlayerRemovePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSetSlotPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSoundEffectPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSpawnEntityPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSpawnPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundTileEntityDataPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundUnloadChunkPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundUpdateViewPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundWindowItemsPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundBlockDigPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundBlockPlacePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundChatCommandPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundChatMessagePacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundEntityActionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundFlyingPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundHeldItemSlotPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundLookPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPositionLookPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundSetCreativeSlotPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundUpdateSignPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.GameProfile
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.ItemSoundHolder
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Position
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Slot
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.SoundSource
+import io.ktor.network.sockets.InetSocketAddress
+import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.LockSupport
+import kotlin.math.floor
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundServerInfoPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingPacket as StatusPingPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundPingPacket as StatusPongPacket
+
+class GogolServer(val config: ServerConfig) {
+
+    val world = GameWorld()
+
+    var engine: RedstoneEngine = MchprsRedstone
+        private set
+
+    var interaction = Interaction(engine)
+        private set
+
+    val players = ArrayList<Player>()
+
+    val commands = CommandRegistry(this)
+
+    val startedAt: Long = System.currentTimeMillis()
+
+    @Volatile
+    var targetTps: Int = config.tps
+
+    @Volatile
+    var measuredTps: Double = 0.0
+
+    @Volatile
+    var averageMspt: Double = 0.0
+
+    @Volatile
+    var running: Boolean = true
+
+    @Volatile
+    var onlineCount: Int = 0
+
+    var currentTick: Long = 0
+        private set
+
+    init {
+        world.soundListener = { pos, soundId, category, volume, pitch ->
+            playSound(pos, soundId, category, volume, pitch)
+        }
+    }
+
+    private val entityIds = AtomicInteger(1)
+    private val tasks = ConcurrentLinkedQueue<Runnable>()
+    private val protocol = Protocols.requireMinecraftVersion("1.20.4")
+
+    fun submit(task: Runnable) {
+        tasks.add(task)
+    }
+
+    fun useEngine(next: RedstoneEngine) {
+        engine = next
+        interaction = Interaction(next)
+    }
+
+    var boundPort: Int = 0
+        private set
+
+    private var socket: Server? = null
+
+    private var tickThread: Thread? = null
+
+    suspend fun start(scope: CoroutineScope) {
+        runCatching {
+            val restored = WorldStorage.load(world, config.worldFile)
+            if (restored > 0) println("restored $restored chunks from ${config.worldFile.path}")
+        }.onFailure { Log.error("world", "could not load ${config.worldFile.path}", it) }
+
+        runCatching {
+            val restored = profiles.load()
+            if (restored > 0) println("restored $restored player profiles")
+        }.onFailure { Log.error("players", "could not load ${config.playerFile.path}", it) }
+
+        val server = Server.bind(InetSocketAddress(config.host, config.port)) { protocol.protocolData() }
+        socket = server
+        boundPort = (server.localAddress as? InetSocketAddress)?.port ?: config.port
+        println("gogolmc listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
+        println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
+
+        startGameLoop()
+
+        scope.launch(Dispatchers.Default) {
+            server.sessions.collect { session ->
+                launch { runCatching { handleSession(session, this) } }
+            }
+        }
+    }
+
+    fun stop() {
+        running = false
+        runCatching { socket?.close() }
+    }
+
+    fun shutdown(): Int {
+        running = false
+        runCatching { tickThread?.join(2_000) }
+        runCatching { socket?.close() }
+        return saveWorld()
+    }
+
+    fun saveWorld(): Int {
+        for (player in players) profiles.put(player)
+        runCatching { profiles.save() }
+            .onFailure { Log.error("players", "save failed", it) }
+        return runCatching { WorldStorage.save(world, config.worldFile) }
+            .onFailure { Log.error("world", "save failed", it) }
+            .getOrDefault(0)
+    }
+
+    fun tpsLabel(): String = if (targetTps <= 0) "unlimited" else targetTps.toString()
+
+    private fun startGameLoop() {
+        val thread = Thread({
+            var lastSample = System.nanoTime()
+            var ticksSinceSample = 0
+            var msptAccumulator = 0.0
+            var nextTick = System.nanoTime()
+            while (running) {
+                val tickStart = System.nanoTime()
+
+                while (true) {
+                    val task = tasks.poll() ?: break
+                    runCatching { task.run() }
+                }
+
+                world.tickScheduled { pos -> engine.tick(world, pos) }
+                flushWorldChanges()
+                broadcastMovement()
+                maintainConnections()
+                maintainSelectionOutlines()
+                maintainAutosave()
+                currentTick++
+
+                val elapsed = System.nanoTime() - tickStart
+                msptAccumulator += elapsed / 1_000_000.0
+                ticksSinceSample++
+
+                val sampleElapsed = System.nanoTime() - lastSample
+                if (sampleElapsed >= 1_000_000_000L) {
+                    measuredTps = ticksSinceSample * 1_000_000_000.0 / sampleElapsed
+                    averageMspt = msptAccumulator / ticksSinceSample
+                    ticksSinceSample = 0
+                    msptAccumulator = 0.0
+                    lastSample = System.nanoTime()
+                }
+
+                val target = targetTps
+                if (target <= 0) {
+                    nextTick = System.nanoTime()
+                    continue
+                }
+
+                val budget = 1_000_000_000L / target
+                nextTick += budget
+                var now = System.nanoTime()
+                if (now - nextTick > budget * 20) nextTick = now
+                while (now < nextTick) {
+                    val remaining = nextTick - now
+                    if (remaining > 500_000L) LockSupport.parkNanos(remaining - 300_000L)
+                    else Thread.onSpinWait()
+                    now = System.nanoTime()
+                }
+            }
+        }, "gogolmc-tick")
+        thread.isDaemon = true
+        tickThread = thread
+        thread.start()
+    }
+
+    private fun flushWorldChanges() {
+        if (world.changedBlocks.isNotEmpty()) {
+            val bySection = HashMap<Long, MutableList<BlockPos>>()
+            for (packed in world.changedBlocks) {
+                val pos = BlockPos.unpack(packed)
+                val key = sectionKey(pos.x shr 4, pos.y shr 4, pos.z shr 4)
+                bySection.getOrPut(key) { ArrayList() }.add(pos)
+            }
+            world.changedBlocks.clear()
+
+            for ((key, positions) in bySection) {
+                val chunkX = (key shr 40).toInt()
+                val chunkZ = ((key shl 24) shr 40).toInt()
+                val sectionY = ((key shl 48) shr 48).toInt()
+                val chunkKey = chunkKey(chunkX, chunkZ)
+
+                if (positions.size == 1) {
+                    val pos = positions[0]
+                    val packet = ClientboundBlockChangePacket(
+                        Position(pos.x, pos.z, pos.y),
+                        world.getBlock(pos),
+                    )
+                    sendToChunk(chunkKey, packet)
+                } else {
+                    val records = positions.map { pos ->
+                        val localX = pos.x and 15
+                        val localZ = pos.z and 15
+                        val localY = pos.y and 15
+                        (world.getBlock(pos) shl 12) or (localX shl 8) or (localZ shl 4) or localY
+                    }
+                    val packet = ClientboundMultiBlockChangePacket(
+                        ClientboundMultiBlockChangePacket.ChunkCoordinates(chunkX, chunkZ, sectionY),
+                        records,
+                    )
+                    sendToChunk(chunkKey, packet)
+                }
+            }
+        }
+
+        if (world.changedBlockEntities.isNotEmpty()) {
+            for (packed in world.changedBlockEntities) {
+                val pos = BlockPos.unpack(packed)
+                val entity = world.getBlockEntity(pos)
+                val packet = ClientboundTileEntityDataPacket(
+                    Position(pos.x, pos.z, pos.y),
+                    entity?.let { BlockEntityNbt.typeId(it) } ?: 0,
+                    entity?.let { BlockEntityNbt.toNbt(it) },
+                )
+                sendToChunk(chunkKey(pos.x shr 4, pos.z shr 4), packet)
+            }
+            world.changedBlockEntities.clear()
+        }
+    }
+
+    private fun sectionKey(chunkX: Int, sectionY: Int, chunkZ: Int): Long =
+        (chunkX.toLong() shl 40) or ((chunkZ.toLong() and 0xFFFFFF) shl 16) or (sectionY.toLong() and 0xFFFF)
+
+    private fun chunkKey(chunkX: Int, chunkZ: Int): Long =
+        (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
+
+    private fun sendToChunk(chunkKey: Long, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
+        for (player in players) {
+            if (chunkKey in player.loadedChunks) player.connection.send(packet)
+        }
+    }
+
+    fun broadcast(packet: org.kvxd.kmcprotocol.core.MinecraftPacket, except: Player? = null) {
+        for (player in players) if (player !== except) player.connection.send(packet)
+    }
+
+    fun broadcastMessage(text: String) {
+        for (player in players) player.connection.sendMessage(text)
+    }
+
+    private var lastOutline: Long = 0
+
+    private fun maintainSelectionOutlines() {
+        val now = System.currentTimeMillis()
+        if (now - lastOutline < SelectionOutlineIntervalMillis) return
+        lastOutline = now
+        for (player in players) {
+            if (player.showSelection) SelectionOutline.draw(player)
+        }
+    }
+
+    private var lastKeepAlive: Long = 0
+    private var lastAutosave: Long = System.currentTimeMillis()
+
+    private fun maintainAutosave() {
+        if (config.autosaveSeconds <= 0) return
+        val now = System.currentTimeMillis()
+        if (now - lastAutosave < config.autosaveSeconds * 1000L) return
+        lastAutosave = now
+        val saved = saveWorld()
+        if (saved > 0) println("[world] autosaved $saved chunks")
+    }
+
+    private fun maintainConnections() {
+        val now = System.currentTimeMillis()
+        if (now - lastKeepAlive < KeepAliveIntervalMillis) return
+        lastKeepAlive = now
+        for (player in players) {
+            player.lastKeepAlive = now
+            player.connection.send(ClientboundKeepAlivePacket(now))
+        }
+    }
+
+    private fun broadcastMovement() {
+        for (player in players) {
+            if (!player.moved) continue
+            player.moved = false
+            val yaw = angleToByte(player.yaw)
+            val teleport = ClientboundEntityTeleportPacket(
+                player.entityId, player.x, player.y, player.z, yaw, angleToByte(player.pitch), player.onGround
+            )
+            val head = ClientboundEntityHeadRotationPacket(player.entityId, yaw)
+            broadcast(teleport, player)
+            broadcast(head, player)
+        }
+    }
+
+    private fun angleToByte(angle: Float): Byte =
+        (Math.floorMod((angle * 256.0f / 360.0f).toInt(), 256)).toByte()
+
+    private suspend fun handleSession(session: ServerSession, scope: CoroutineScope) {
+        var username: String? = null
+        var player: Player? = null
+        try {
+            while (true) {
+                val packet = session.receiveOrNull() ?: break
+                when (packet) {
+                    is org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingStartPacket,
+                    is StatusPingPacket -> handleStatus(session, packet)
+
+                    is ServerboundLoginStartPacket -> {
+                        username = packet.username
+                        if (config.compressionThreshold > 0) {
+                            session.send(ClientboundCompressPacket(config.compressionThreshold))
+                        }
+                        session.send(ClientboundSuccessPacket(offlineUuid(packet.username), packet.username, emptyList()))
+                    }
+
+                    is org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.serverbound.ServerboundLoginAcknowledgedPacket -> {
+                        session.send(brandPacket())
+                        session.send(ClientboundRegistryDataPacket(Registries.codec))
+                        session.send(ClientboundFinishConfigurationPacket)
+                    }
+
+                    is org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.serverbound.ServerboundFinishConfigurationPacket -> {
+                        if (player == null) {
+                            val created = createPlayer(session, scope, username ?: "player")
+                            player = created
+                            submit { addPlayer(created) }
+                        }
+                    }
+
+                    else -> {
+                        val target = player
+                        if (target != null && session.data.state == ProtocolState.Play) {
+                            submit { handlePlayPacket(target, packet) }
+                        }
+                    }
+                }
+            }
+            Log.info("net", "${session.remoteAddress} closed the connection")
+        } catch (cause: Throwable) {
+            Log.error("net", "${session.remoteAddress} failed in ${session.data.state}", cause)
+        } finally {
+            val target = player
+            if (target != null) submit { removePlayer(target) } else runCatching { session.close() }
+        }
+    }
+
+    private fun brandPacket() =
+        org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundCustomPayloadPacket(
+            "minecraft:brand",
+            encodeBrand("gogolmc"),
+        )
+
+    private fun encodeBrand(brand: String): ByteArray {
+        val bytes = brand.toByteArray(Charsets.UTF_8)
+        val output = java.io.ByteArrayOutputStream()
+        var value = bytes.size
+        while (true) {
+            if (value and 0x7F.inv() == 0) {
+                output.write(value)
+                break
+            }
+            output.write((value and 0x7F) or 0x80)
+            value = value ushr 7
+        }
+        output.write(bytes)
+        return output.toByteArray()
+    }
+
+    private suspend fun handleStatus(session: ServerSession, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
+        when (packet) {
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingStartPacket -> {
+                val online = onlineCount
+                val json = buildString {
+                    append("{\"version\":{\"name\":\"1.20.4\",\"protocol\":765},")
+                    append("\"players\":{\"max\":${config.maxPlayers},\"online\":$online,\"sample\":[]},")
+                    append("\"description\":{\"text\":\"${config.motd.replace("\"", "\\\"")}\"},")
+                    append("\"enforcesSecureChat\":false}")
+                }
+                session.send(ClientboundServerInfoPacket(json))
+            }
+            is StatusPingPacket -> session.send(StatusPongPacket(packet.time))
+            else -> Unit
+        }
+    }
+
+    private fun offlineUuid(name: String): UUID =
+        UUID.nameUUIDFromBytes("OfflinePlayer:$name".toByteArray(Charsets.UTF_8))
+
+    fun createPlayer(session: ServerSession, scope: CoroutineScope, name: String): Player {
+        val connection = PlayerConnection(session, scope)
+        return Player(entityIds.incrementAndGet(), offlineUuid(name), name, connection)
+    }
+
+    val profiles = PlayerProfileStore(config.playerFile)
+
+    fun addPlayer(player: Player) {
+        profiles[player.name]?.applyTo(player)
+        players.add(player)
+        onlineCount = players.size
+        sendJoinSequence(player)
+    }
+
+    private fun sendJoinSequence(player: Player) {
+        val connection = player.connection
+        connection.send(
+            ClientboundLoginPacket(
+                entityId = player.entityId,
+                isHardcore = false,
+                worldNames = listOf("minecraft:overworld"),
+                maxPlayers = config.maxPlayers,
+                viewDistance = config.viewDistance,
+                simulationDistance = config.viewDistance,
+                reducedDebugInfo = false,
+                enableRespawnScreen = false,
+                doLimitedCrafting = false,
+                worldType = "minecraft:overworld",
+                worldName = "minecraft:overworld",
+                hashedSeed = 0L,
+                gameMode = 1,
+                previousGameMode = -1,
+                isDebug = false,
+                isFlat = true,
+                death = null,
+                portalCooldown = 0,
+            )
+        )
+        sendAbilities(player)
+        connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
+        connection.send(ClientboundSpawnPositionPacket(Position(0, 0, 1), 0.0f))
+        connection.send(commands.declarePacket)
+        sendInventory(player)
+
+        player.y = 1.0
+        sendPosition(player)
+        connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
+        updateChunks(player, force = true)
+
+        val addSelf = playerInfoAdd(listOf(player))
+        for (other in players) {
+            other.connection.send(addSelf)
+            if (other !== player) {
+                player.connection.send(playerInfoAdd(listOf(other)))
+                player.connection.send(spawnPacket(other))
+                other.connection.send(spawnPacket(player))
+            }
+        }
+        broadcastMessage("${player.name} joined")
+    }
+
+    private fun playerInfoAdd(targets: List<Player>): ClientboundPlayerInfoPacket =
+        ClientboundPlayerInfoPacket(
+            action = setOf(
+                ClientboundPlayerInfoPacket.Action.AddPlayer,
+                ClientboundPlayerInfoPacket.Action.UpdateListed,
+                ClientboundPlayerInfoPacket.Action.UpdateGameMode,
+            ),
+            data = targets.map { target ->
+                ClientboundPlayerInfoPacket.DataEntry(
+                    uuid = target.uuid,
+                    player = GameProfile(target.name, emptyList()),
+                    chatSession = null,
+                    gamemode = 1,
+                    listed = 1,
+                    latency = null,
+                    displayName = null,
+                )
+            },
+        )
+
+    private fun spawnPacket(target: Player): ClientboundSpawnEntityPacket =
+        ClientboundSpawnEntityPacket(
+            entityId = target.entityId,
+            objectUUID = target.uuid,
+            type = PlayerEntityTypeId,
+            x = target.x,
+            y = target.y,
+            z = target.z,
+            pitch = angleToByte(target.pitch),
+            yaw = angleToByte(target.yaw),
+            headPitch = angleToByte(target.yaw),
+            objectData = 0,
+            velocity = org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Vec3i16(0, 0, 0),
+        )
+
+    fun sendPosition(player: Player) {
+        player.teleportId++
+        player.connection.send(
+            ClientboundPositionPacket(
+                player.x, player.y, player.z, player.yaw, player.pitch, 0, player.teleportId
+            )
+        )
+    }
+
+    fun sendAbilities(player: Player) {
+        var flags = 0x01 or 0x04 or 0x08
+        if (player.flying) flags = flags or 0x02
+        player.connection.send(
+            ClientboundAbilitiesPacket(flags.toByte(), player.flyingSpeed, player.walkingSpeed)
+        )
+        player.connection.send(
+            ClientboundEntityUpdateAttributesPacket(
+                player.entityId,
+                listOf(
+                    ClientboundEntityUpdateAttributesPacket.Property(
+                        name = "minecraft:generic.movement_speed",
+                        value = player.walkingSpeed.toDouble(),
+                        modifiers = emptyList(),
+                    )
+                ),
+            )
+        )
+    }
+
+    fun sendInventory(player: Player) {
+        val slots = player.inventory.map { stack ->
+            if (stack == null) Slot(false, null, null, null)
+            else Slot(true, stack.item.protocolId, stack.count.toByte(), stack.nbt)
+        }
+        player.connection.send(
+            ClientboundWindowItemsPacket(0, 0, slots, Slot(false, null, null, null))
+        )
+    }
+
+    fun removePlayer(player: Player) {
+        if (!players.remove(player)) return
+        profiles.put(player)
+        onlineCount = players.size
+        player.connection.close()
+        broadcast(ClientboundEntityDestroyPacket(listOf(player.entityId)))
+        broadcast(ClientboundPlayerRemovePacket(listOf(player.uuid)))
+        broadcastMessage("${player.name} left")
+    }
+
+    fun updateChunks(player: Player, force: Boolean = false) {
+        val chunkX = floor(player.x).toInt() shr 4
+        val chunkZ = floor(player.z).toInt() shr 4
+        if (!force && chunkX == player.lastChunkX && chunkZ == player.lastChunkZ) return
+        player.lastChunkX = chunkX
+        player.lastChunkZ = chunkZ
+
+        player.connection.send(ClientboundUpdateViewPositionPacket(chunkX, chunkZ))
+
+        val desired = HashSet<Long>()
+        val distance = config.viewDistance
+        for (dx in -distance..distance) {
+            for (dz in -distance..distance) desired.add(chunkKey(chunkX + dx, chunkZ + dz))
+        }
+
+        val toUnload = player.loadedChunks.filter { it !in desired }
+        for (key in toUnload) {
+            player.loadedChunks.remove(key)
+            player.connection.send(
+                ClientboundUnloadChunkPacket((key and 0xFFFFFFFFL).toInt(), (key shr 32).toInt())
+            )
+        }
+
+        val toLoad = desired.filter { it !in player.loadedChunks }.sortedBy { key ->
+            val dx = (key shr 32).toInt() - chunkX
+            val dz = (key and 0xFFFFFFFFL).toInt() - chunkZ
+            dx * dx + dz * dz
+        }
+        if (toLoad.isEmpty()) return
+
+        player.connection.send(ClientboundChunkBatchStartPacket)
+        for (key in toLoad) {
+            val cx = (key shr 32).toInt()
+            val cz = (key and 0xFFFFFFFFL).toInt()
+            player.connection.send(ChunkPackets.encode(world.chunkAt(cx, cz)))
+            player.loadedChunks.add(key)
+        }
+        player.connection.send(ClientboundChunkBatchFinishedPacket(toLoad.size))
+    }
+
+    fun handlePlayPacket(player: Player, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
+        when (packet) {
+            is ServerboundPositionPacket -> {
+                player.x = packet.x
+                player.y = packet.y
+                player.z = packet.z
+                player.onGround = packet.onGround
+                player.moved = true
+                updateChunks(player)
+            }
+            is ServerboundPositionLookPacket -> {
+                player.x = packet.x
+                player.y = packet.y
+                player.z = packet.z
+                player.yaw = packet.yaw
+                player.pitch = packet.pitch
+                player.onGround = packet.onGround
+                player.moved = true
+                updateChunks(player)
+            }
+            is ServerboundLookPacket -> {
+                player.yaw = packet.yaw
+                player.pitch = packet.pitch
+                player.onGround = packet.onGround
+                player.moved = true
+            }
+            is ServerboundFlyingPacket -> player.onGround = packet.onGround
+            is ServerboundHeldItemSlotPacket -> player.selectedSlot = packet.slotId.toInt().coerceIn(0, 8)
+            is ServerboundSetCreativeSlotPacket -> {
+                val slot = packet.slot.toInt()
+                if (slot in player.inventory.indices) {
+                    player.inventory[slot] = toStack(packet.item)
+                    player.connection.send(
+                        ClientboundSetSlotPacket(0, 0, slot.toShort(), packet.item)
+                    )
+                }
+            }
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundCloseWindowPacket ->
+                ContainerScreens.close(player)
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundWindowClickPacket -> {
+                if (packet.windowId.toInt() == ContainerScreens.WindowId) {
+                    for (changed in packet.changedSlots) {
+                        ContainerScreens.applyClick(world, player, changed.location.toInt(), changed.item)
+                    }
+                } else if (packet.windowId.toInt() == 0) {
+                    for (changed in packet.changedSlots) {
+                        val slot = changed.location.toInt()
+                        if (slot in player.inventory.indices) player.inventory[slot] = toStack(changed.item)
+                    }
+                    player.carriedItem = toStack(packet.cursorItem)
+                }
+            }
+            is ServerboundEntityActionPacket -> {
+                when (packet.actionId) {
+                    0 -> player.crouching = true
+                    1 -> player.crouching = false
+                }
+            }
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundAbilitiesPacket -> {
+                player.flying = (packet.flags.toInt() and 0x02) != 0
+            }
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundKeepAlivePacket -> {
+                if (packet.keepAliveId == player.lastKeepAlive) {
+                    player.latency = (System.currentTimeMillis() - packet.keepAliveId).toInt()
+                }
+            }
+            is ServerboundBlockDigPacket -> handleDig(player, packet)
+            is ServerboundBlockPlacePacket -> handlePlace(player, packet)
+            is ServerboundChatMessagePacket -> broadcastMessage("<${player.name}> ${packet.message}")
+            is ServerboundChatCommandPacket -> commands.execute(player, packet.command)
+            is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundTabCompletePacket ->
+                commands.complete(player, packet.transactionId, packet.text)
+            is ServerboundUpdateSignPacket -> handleSignUpdate(player, packet)
+            else -> Unit
+        }
+    }
+
+    private fun handleSignUpdate(player: Player, packet: ServerboundUpdateSignPacket) {
+        val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
+        val lines = listOf(packet.text1, packet.text2, packet.text3, packet.text4)
+        val existing = world.getBlockEntity(pos) as? BlockEntity.Sign
+        val entity = if (packet.isFrontText) {
+            BlockEntity.Sign(lines, existing?.backRows ?: listOf("", "", "", ""))
+        } else {
+            BlockEntity.Sign(existing?.frontRows ?: listOf("", "", "", ""), lines)
+        }
+        world.setBlockEntity(pos, entity)
+    }
+
+    private fun toStack(slot: Slot): ItemStack? {
+        val itemId = slot.itemId
+        if (!slot.present || itemId == null) return null
+        return ItemStack(Items.byProtocolId(itemId), slot.itemCount?.toInt() ?: 1, slot.nbtData)
+    }
+
+    private fun dropHeld(player: Player, wholeStack: Boolean) {
+        val index = 36 + player.selectedSlot
+        val held = player.inventory[index] ?: return
+        player.inventory[index] = when {
+            wholeStack || held.count <= 1 -> null
+            else -> ItemStack(held.item, held.count - 1, held.nbt)
+        }
+    }
+
+    private fun handleDig(player: Player, packet: ServerboundBlockDigPacket) {
+        val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
+        if (packet.status == 3 || packet.status == 4) {
+            dropHeld(player, wholeStack = packet.status == 4)
+            return
+        }
+        player.connection.send(ClientboundAcknowledgePlayerDiggingPacket(packet.sequence))
+        when (packet.status) {
+            0 -> {
+                val held = player.heldItem
+                if (held != null && held.item.name == "minecraft:wooden_axe") {
+                    commands.worldEdit.setPositionOne(player, pos)
+                    player.connection.send(
+                        ClientboundBlockChangePacket(Position(pos.x, pos.z, pos.y), world.getBlock(pos))
+                    )
+                    return
+                }
+                val state = world.getBlock(pos)
+                if (state != Blocks.airState) interaction.destroy(state, world, pos)
+            }
+        }
+    }
+
+    private fun handlePlace(player: Player, packet: ServerboundBlockPlacePacket) {
+        if (packet.hand != 0) return
+        val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
+        player.connection.send(ClientboundAcknowledgePlayerDiggingPacket(packet.sequence))
+        val held = player.heldItem
+
+        if (held != null && held.item.name == "minecraft:wooden_axe") {
+            commands.worldEdit.setPositionTwo(player, pos)
+            return
+        }
+
+        val context = UseOnBlockContext(
+            blockPos = pos,
+            blockFace = BlockFace.fromId(packet.direction),
+            cursorY = packet.cursorY,
+            yaw = player.yaw,
+            pitch = player.pitch,
+            crouching = player.crouching,
+            playerPos = player.blockPos,
+        )
+
+        val stack = held ?: ItemStack(Items.unknown, 0, null)
+        val result = interaction.useItemOnBlock(stack, world, context)
+        result.openSignEditorAt?.let { signPos ->
+            player.connection.send(
+                ClientboundOpenSignEntityPacket(Position(signPos.x, signPos.z, signPos.y), true)
+            )
+        }
+        result.openContainerAt?.let { containerPos ->
+            val container = org.kvxd.gogolmc.world.BlockEntities.ensure(world, containerPos)
+            if (container is BlockEntity.Container) {
+                ContainerScreens.open(player, containerPos, container)
+            }
+        }
+    }
+
+    fun playSound(pos: BlockPos, soundId: Int, category: Int, volume: Float, pitch: Float) {
+        val packet = ClientboundSoundEffectPacket(
+            sound = ItemSoundHolder(soundId + 1, null),
+            soundCategory = SoundSource.entries.getOrElse(category) { SoundSource.Record },
+            x = pos.x * 8,
+            y = pos.y * 8,
+            z = pos.z * 8,
+            volume = volume,
+            pitch = pitch,
+            seed = 0L,
+        )
+        sendToChunk(chunkKey(pos.x shr 4, pos.z shr 4), packet)
+    }
+
+    companion object {
+        const val PlayerEntityTypeId = 124
+        const val KeepAliveIntervalMillis = 5_000L
+        const val SelectionOutlineIntervalMillis = 1_000L
+        const val WaitForChunksReason: Short = 13
+    }
+}

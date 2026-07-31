@@ -1,0 +1,18 @@
+[versions]
+java = "25"
+kotlin = "2.4.10"
+kmcprotocol = "0.1.3"
+brigadier = "1.3.10"
+coroutines = "1.11.0"
+serialization = "1.11.0"
+
+[libraries]
+kmcprotocol-extensions = { module = "org.kvxd:kmcprotocol-extensions", version.ref = "kmcprotocol" }
+brigadier = { module = "com.mojang:brigadier", version.ref = "brigadier" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kmcprotocol = { id = "org.kvxd.kmcprotocol", version.ref = "kmcprotocol" }
