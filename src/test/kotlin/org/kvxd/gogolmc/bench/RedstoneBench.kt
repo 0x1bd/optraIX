@@ -132,6 +132,7 @@ object RedstoneBench {
         println("compiled in       ${compileMillis}ms")
         println("nodes             ${compiled.count}")
         println("edges             ${compiled.edgeCount}")
+        println("histogram bytes   ${compiled.histogramBytes} (dense would be ${compiled.count * 32})")
 
         val opt3xTicks = maxOf(ticks * 20, 12_000_000 / maxOf(1, circuit.components / 100))
 

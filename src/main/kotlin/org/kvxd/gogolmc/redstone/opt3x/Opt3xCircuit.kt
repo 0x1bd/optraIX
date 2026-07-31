@@ -25,10 +25,9 @@ class Opt3xCircuit internal constructor(
     internal val edges: IntArray,
     internal val index: HashMap<Long, Int>,
     private val state: LongArray,
+    private val histBase: IntArray,
+    private val counts: ByteArray,
 ) {
-
-    private val defCounts = ByteArray(count * 16)
-    private val sideCounts = ByteArray(count * 16)
 
     private val scheduler = TickScheduler(count)
     private val consumerQueue = IntQueue(1024)
@@ -44,6 +43,8 @@ class Opt3xCircuit internal constructor(
         private set
 
     val edgeCount: Int get() = edges.size
+
+    val histogramBytes: Int get() = counts.size
 
     val pendingTicks: Int get() = scheduler.queued
 
@@ -71,32 +72,32 @@ class Opt3xCircuit internal constructor(
     }
 
     private fun addDefault(node: Int, value: Int) {
-        val slot = node * 16 + value
-        if (defCounts[slot].toInt() == 0) state[node] = state[node] or (1L shl (DefMaskShift + value))
-        defCounts[slot]++
+        val slot = histBase[node] + value
+        if (counts[slot].toInt() == 0) state[node] = state[node] or (1L shl (DefMaskShift + value))
+        counts[slot]++
     }
 
     private fun addSide(node: Int, value: Int) {
-        val slot = node * 16 + value
-        if (sideCounts[slot].toInt() == 0) state[node] = state[node] or (1L shl (SideMaskShift + value))
-        sideCounts[slot]++
+        val slot = histBase[node] + SideHistogram + value
+        if (counts[slot].toInt() == 0) state[node] = state[node] or (1L shl (SideMaskShift + value))
+        counts[slot]++
     }
 
     private fun moveDefault(node: Int, from: Int, to: Int) {
-        val base = node * 16
+        val base = histBase[node]
         var word = state[node]
-        if ((--defCounts[base + from]).toInt() == 0) word = word and (1L shl (DefMaskShift + from)).inv()
-        if (defCounts[base + to].toInt() == 0) word = word or (1L shl (DefMaskShift + to))
-        defCounts[base + to]++
+        if ((--counts[base + from]).toInt() == 0) word = word and (1L shl (DefMaskShift + from)).inv()
+        if (counts[base + to].toInt() == 0) word = word or (1L shl (DefMaskShift + to))
+        counts[base + to]++
         state[node] = word
     }
 
     private fun moveSide(node: Int, from: Int, to: Int) {
-        val base = node * 16
+        val base = histBase[node] + SideHistogram
         var word = state[node]
-        if ((--sideCounts[base + from]).toInt() == 0) word = word and (1L shl (SideMaskShift + from)).inv()
-        if (sideCounts[base + to].toInt() == 0) word = word or (1L shl (SideMaskShift + to))
-        sideCounts[base + to]++
+        if ((--counts[base + from]).toInt() == 0) word = word and (1L shl (SideMaskShift + from)).inv()
+        if (counts[base + to].toInt() == 0) word = word or (1L shl (SideMaskShift + to))
+        counts[base + to]++
         state[node] = word
     }
 
@@ -502,6 +503,10 @@ class Opt3xCircuit internal constructor(
 
     companion object {
         const val Stats = true
+
+        const val HistogramStride = 32
+        const val SideHistogram = 16
+        const val NoHistogram = -HistogramStride
 
         const val OutputShift = 4
         const val DelayShift = 11

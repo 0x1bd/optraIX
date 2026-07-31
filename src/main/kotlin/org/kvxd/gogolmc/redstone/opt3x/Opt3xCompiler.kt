@@ -537,6 +537,15 @@ object Opt3xCompiler {
             }
         }
 
+        val histBase = IntArray(count) { Opt3xCircuit.NoHistogram }
+        var histogramNodes = 0
+        for (id in 0 until count) {
+            if (defaultInputs[id] <= 1 && sideInputs[id] <= 1) continue
+            histBase[id] = histogramNodes * Opt3xCircuit.HistogramStride
+            histogramNodes++
+        }
+        val counts = ByteArray(histogramNodes * Opt3xCircuit.HistogramStride)
+
         for (node in graph.nodes) {
             val id = rank[node.id]
             posKey[id] = node.pos.asLong()
@@ -580,6 +589,8 @@ object Opt3xCompiler {
             edges = edges,
             index = index,
             state = state,
+            histBase = histBase,
+            counts = counts,
         )
     }
 }
