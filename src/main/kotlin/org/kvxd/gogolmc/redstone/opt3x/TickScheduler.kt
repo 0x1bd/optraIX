@@ -13,6 +13,11 @@ class TickScheduler(nodeCount: Int) {
     fun isPending(node: Int): Boolean = pending[node] > 0
 
     fun schedule(node: Int, delay: Int, priority: Int) {
+        scheduleEntry(node, delay, priority)
+        pending[node]++
+    }
+
+    fun scheduleEntry(entry: Int, delay: Int, priority: Int) {
         val slot = ((now + delay) and WheelMask) * Priorities + priority
         var data = queueData[slot]
         val size = queueSize[slot]
@@ -20,10 +25,13 @@ class TickScheduler(nodeCount: Int) {
             data = data.copyOf(size shl 1)
             queueData[slot] = data
         }
-        data[size] = node
+        data[size] = entry
         queueSize[slot] = size + 1
-        pending[node]++
         queued++
+    }
+
+    fun releaseEntry() {
+        queued--
     }
 
     fun nextBucket(): Int {

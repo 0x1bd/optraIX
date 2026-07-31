@@ -103,7 +103,7 @@ object RedstoneBench {
             val built2 = Opt3xCompiler.compile(circuit.world)
             built2.settle()
             val levers2 = circuit.levers.map { built2.nodeAt(it) }.toIntArray()
-            println("nodes=${built2.count} edges=${built2.edgeCount}")
+            println("nodes=${built2.count} edges=${built2.edgeCount} chains=${built2.chainCount} links=${built2.fusedLinks}")
             repeat(4) { runOpt3x(built2, levers2, ticks * 20, TogglePeriod) }
             val started = System.nanoTime()
             var loops = 0
@@ -132,6 +132,8 @@ object RedstoneBench {
         println("compiled in       ${compileMillis}ms")
         println("nodes             ${compiled.count}")
         println("edges             ${compiled.edgeCount}")
+        println("chains            ${compiled.chainCount}")
+        println("fused links       ${compiled.fusedLinks}")
         println("histogram bytes   ${compiled.histogramBytes} (dense would be ${compiled.count * 32})")
 
         val opt3xTicks = maxOf(ticks * 20, 12_000_000 / maxOf(1, circuit.components / 100))

@@ -24,13 +24,20 @@ object Opt3xCompiler {
     fun compile(
         world: GameWorld,
         eliminateWire: Boolean = true,
+        fuseChains: Boolean = true,
     ): Opt3xCircuit {
         val graph = Opt3xGraph()
         scan(world, graph)
         for (node in graph.nodes) buildEdges(world, graph, node)
-        val resolved = if (eliminateWire) compact(eliminateWires(graph)) else graph
+        var resolved = if (eliminateWire) compact(eliminateWires(graph)) else graph
+        if (fuseChains) resolved = ChainFuser.fuse(resolved)
         val circuit = flatten(resolved)
         for (entry in world.snapshotTicks()) {
+            val slot = circuit.linkIndex[entry.pos.asLong()]
+            if (slot != null) {
+                circuit.importPendingLinkTick(slot, entry.ticksLeft, entry.priority.ordinal)
+                continue
+            }
             val node = circuit.nodeAt(entry.pos)
             if (node < 0) continue
             circuit.importPendingTick(node, entry.ticksLeft, entry.priority.ordinal)
@@ -546,6 +553,58 @@ object Opt3xCompiler {
         }
         val counts = ByteArray(histogramNodes * Opt3xCircuit.HistogramStride)
 
+        var chainTotal = 0
+        var linkTotal = 0
+        for (node in graph.nodes) {
+            val links = node.chainLinks ?: continue
+            chainTotal++
+            linkTotal += links.size
+        }
+        val chainIndexOf = IntArray(count) { -1 }
+        val chainNodeOf = IntArray(chainTotal)
+        val chainOffset = IntArray(chainTotal)
+        val chainLength = IntArray(chainTotal)
+        val chainPowered = LongArray(chainTotal)
+        val linkChainOf = IntArray(linkTotal)
+        val linkKind = ByteArray(linkTotal)
+        val linkPos = LongArray(linkTotal)
+        val linkFacing = ByteArray(linkTotal)
+        val linkOn = ByteArray(linkTotal)
+        val linkIndex = HashMap<Long, Int>(linkTotal * 2)
+        var chainCursor = 0
+        var linkCursor = 0
+        for (node in graph.nodes) {
+            val links = node.chainLinks ?: continue
+            val id = rank[node.id]
+            val chain = chainCursor++
+            chainIndexOf[id] = chain
+            chainNodeOf[chain] = id
+            chainOffset[chain] = linkCursor
+            chainLength[chain] = links.size
+            var powered = 0L
+            for ((offset, link) in links.withIndex()) {
+                val slot = linkCursor + offset
+                linkChainOf[slot] = chain
+                var kind = when (link.type) {
+                    NodeType.Repeater -> link.delay or
+                        (Opt3xCircuit.LinkRepeater shl Opt3xCircuit.LinkTypeShift)
+                    NodeType.Comparator -> (Opt3xCircuit.LinkComparator shl Opt3xCircuit.LinkTypeShift) or
+                        (if (link.mode == ComparatorMode.Subtract.ordinal) Opt3xCircuit.SubtractLink else 0)
+                    NodeType.Torch -> Opt3xCircuit.LinkTorch shl Opt3xCircuit.LinkTypeShift
+                    else -> Opt3xCircuit.LinkWallTorch shl Opt3xCircuit.LinkTypeShift
+                }
+                if (link.frontDiode) kind = kind or Opt3xCircuit.FrontDiodeLink
+                linkKind[slot] = kind.toByte()
+                linkPos[slot] = link.pos.asLong()
+                linkFacing[slot] = link.facing.toByte()
+                linkOn[slot] = link.onStrength.toByte()
+                linkIndex[link.pos.asLong()] = slot
+                if (link.on) powered = powered or (1L shl offset)
+            }
+            chainPowered[chain] = powered
+            linkCursor += links.size
+        }
+
         for (node in graph.nodes) {
             val id = rank[node.id]
             posKey[id] = node.pos.asLong()
@@ -591,6 +650,17 @@ object Opt3xCompiler {
             state = state,
             histBase = histBase,
             counts = counts,
+            chainIndexOf = chainIndexOf,
+            chainNodeOf = chainNodeOf,
+            chainOffset = chainOffset,
+            chainLength = chainLength,
+            chainPowered = chainPowered,
+            linkChainOf = linkChainOf,
+            linkKind = linkKind,
+            linkPos = linkPos,
+            linkFacing = linkFacing,
+            linkOn = linkOn,
+            linkIndex = linkIndex,
         )
     }
 }

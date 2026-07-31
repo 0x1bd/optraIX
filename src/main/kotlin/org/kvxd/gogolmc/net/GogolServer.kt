@@ -201,6 +201,7 @@ class GogolServer(val config: ServerConfig) {
     }
 
     fun compileRedstone(target: Opt3xEngine) {
+        if (target.paused) return
         compiling = true
         refreshSidebar(force = true)
         val ok = target.compile(world)
@@ -242,6 +243,7 @@ class GogolServer(val config: ServerConfig) {
 
     private fun maintainRedstoneCompile() {
         val opt3x = engine as? Opt3xEngine ?: return
+        if (opt3x.paused) return
         val counter = opt3x.changeCounter
         val now = System.currentTimeMillis()
         if (counter != lastEditCounter) {
@@ -263,6 +265,7 @@ class GogolServer(val config: ServerConfig) {
         val circuit = opt3x?.circuit
         val state = when {
             compiling -> "compiling" to Text.Yellow
+            opt3x?.paused == true -> "paused" to Text.Gray
             circuit != null -> "compiled" to Text.Green
             opt3x?.lastError != null -> "failed" to Text.Red
             opt3x != null -> "interpreted" to Text.Yellow

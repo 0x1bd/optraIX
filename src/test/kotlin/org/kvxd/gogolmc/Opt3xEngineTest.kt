@@ -96,7 +96,7 @@ class Opt3xEngineTest {
         val engine = Opt3xEngine()
         assertTrue(engine.compile(candidate))
 
-        val watched = listOf(BlockPos(0, 1, 0), BlockPos(5, 1, 0), BlockPos(6, 1, 0))
+        val io = listOf(BlockPos(0, 1, 0), BlockPos(6, 1, 0))
         for (tick in 0 until 40) {
             if (tick % 7 == 0) {
                 MchprsRedstone.onUse(reference, referenceLever)
@@ -104,13 +104,22 @@ class Opt3xEngineTest {
             }
             reference.tickScheduled { pos -> MchprsRedstone.tick(reference, pos) }
             engine.tickWorld(candidate)
-            for (pos in watched) {
+            for (pos in io) {
                 assertEquals(
                     reference.getBlock(pos),
                     candidate.getBlock(pos),
                     "tick $tick at $pos",
                 )
             }
+        }
+
+        engine.decompile(candidate)
+        for (pos in listOf(BlockPos(0, 1, 0), BlockPos(5, 1, 0), BlockPos(6, 1, 0))) {
+            assertEquals(
+                reference.getBlock(pos),
+                candidate.getBlock(pos),
+                "after decompile at $pos",
+            )
         }
     }
 
@@ -144,5 +153,73 @@ class Opt3xEngineTest {
 
         val lamp = BlockPos(6, 1, 0)
         assertTrue(BlockStates.lit[restored.getBlock(lamp)], "lamp should be lit after the round trip")
+    }
+
+    @Test
+    fun pauseDecompilesAndBlocksUntilResume() {
+        val (world, lever) = lampWorld()
+        val engine = Opt3xEngine()
+
+        assertTrue(engine.compile(world))
+        assertTrue(engine.compiled)
+        assertFalse(engine.paused)
+
+        engine.pause(world)
+        assertTrue(engine.paused)
+        assertFalse(engine.compiled)
+
+        MchprsRedstone.onUse(world, lever)
+        repeat(6) { engine.tickWorld(world) }
+        val lamp = BlockPos(6, 1, 0)
+        assertTrue(BlockStates.lit[world.getBlock(lamp)], "paused engine must run interpreted")
+
+        assertTrue(engine.compile(world), "explicit compile resumes")
+        assertFalse(engine.paused)
+        assertTrue(engine.compiled)
+    }
+
+    private fun chainWorld(): Triple<GameWorld, BlockPos, BlockPos> {
+        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)
+        val lever = BlockPos(0, 1, 0)
+        world.setBlockSilent(lever, BlockStates.leverState(LeverFace.Floor, BlockDirection.North, false))
+        for (x in 1..4) {
+            world.setBlockSilent(BlockPos(x, 1, 0), BlockStates.repeaterState(1, BlockDirection.West, false, false))
+        }
+        val dust = BlockPos(5, 1, 0)
+        world.setBlockSilent(dust, Wire.make(WireSide.None, WireSide.None, WireSide.None, WireSide.None, 0))
+        world.setBlockSilent(BlockPos(6, 1, 0), BlockStates.lampState(false))
+        world.setBlockSilent(dust, Wire.getRegulatedSides(world.getBlock(dust), world, dust))
+        world.changedBlocks.clear()
+        return Triple(world, lever, BlockPos(6, 1, 0))
+    }
+
+    @Test
+    fun ioOnlyFlushFreezesFusedInteriorUntilDecompile() {
+        val (world, lever, lamp) = chainWorld()
+        val engine = Opt3xEngine()
+
+        assertTrue(engine.compile(world), "compile should succeed: ${engine.lastError}")
+        val circuit = engine.circuit!!
+        assertTrue(circuit.fusedLinks >= 3, "repeater run should fuse, got ${circuit.fusedLinks}")
+
+        assertTrue(engine.onUse(world, lever))
+        repeat(10) { engine.tickWorld(world) }
+
+        assertTrue(BlockStates.lit[world.getBlock(lamp)], "lamp is IO and must update")
+        for (x in 1..4) {
+            assertFalse(
+                BlockStates.powered[world.getBlock(BlockPos(x, 1, 0))],
+                "fused repeater at x=$x stays frozen while compiled",
+            )
+        }
+
+        engine.decompile(world)
+        for (x in 1..4) {
+            assertTrue(
+                BlockStates.powered[world.getBlock(BlockPos(x, 1, 0))],
+                "decompile must materialise the true state at x=$x",
+            )
+        }
     }
 }

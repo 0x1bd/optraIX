@@ -28,7 +28,20 @@ class Opt3xEngine : RedstoneEngine {
 
     val compiled: Boolean get() = circuit != null
 
+    var paused: Boolean = false
+        private set
+
+    fun pause(world: GameWorld) {
+        decompile(world)
+        paused = true
+    }
+
+    fun resume() {
+        paused = false
+    }
+
     fun compile(world: GameWorld): Boolean {
+        paused = false
         decompile(world)
         val started = System.nanoTime()
         return try {
@@ -69,7 +82,7 @@ class Opt3xEngine : RedstoneEngine {
             return
         }
         active.tick()
-        active.flush(world)
+        active.flush(world, ioOnly = true)
         stats.blockUpdates = active.nodeUpdates
         stats.scheduledTicks = active.nodeTicks
         stats.wireUpdates = 0
@@ -83,12 +96,12 @@ class Opt3xEngine : RedstoneEngine {
                 when (active.typeOf(node)) {
                     NodeType.Lever -> {
                         active.setSource(node, !active.isOn(node))
-                        active.flush(world)
+                        active.flush(world, ioOnly = true)
                         return true
                     }
                     NodeType.Button -> {
                         active.pressButton(node)
-                        active.flush(world)
+                        active.flush(world, ioOnly = true)
                         return true
                     }
                 }
@@ -111,7 +124,7 @@ class Opt3xEngine : RedstoneEngine {
             val node = active.nodeAt(pos)
             if (node >= 0 && active.typeOf(node) == NodeType.PressurePlate) {
                 active.setSource(node, powered)
-                active.flush(world)
+                active.flush(world, ioOnly = true)
                 return
             }
         }

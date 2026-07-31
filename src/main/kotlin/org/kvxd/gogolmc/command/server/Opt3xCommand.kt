@@ -5,7 +5,6 @@ import org.kvxd.gogolmc.command.CommandSource
 import org.kvxd.gogolmc.command.GogolCommand
 import org.kvxd.gogolmc.command.literal
 import org.kvxd.gogolmc.command.runs
-import org.kvxd.gogolmc.redstone.mchprs.MchprsRedstone
 import org.kvxd.gogolmc.redstone.opt3x.NodeType
 import org.kvxd.gogolmc.redstone.opt3x.Opt3xEngine
 
@@ -20,7 +19,8 @@ class Opt3xCommand : GogolCommand {
             literal("opt3x")
                 .runs { status(it.source) }
                 .then(literal("compile").runs { compile(it.source) })
-                .then(literal("reset").runs { reset(it.source) })
+                .then(literal("pause").runs { pause(it.source) })
+                .then(literal("resume").runs { resume(it.source) })
                 .then(literal("status").runs { status(it.source) })
         )
     }
@@ -51,13 +51,38 @@ class Opt3xCommand : GogolCommand {
         }
     }
 
-    private fun reset(source: CommandSource) {
+    private fun pause(source: CommandSource) {
         val server = source.server
         server.submit {
             val engine = server.engine
-            if (engine is Opt3xEngine) engine.decompile(server.world)
-            server.useEngine(MchprsRedstone)
-            source.success("redstone engine reset to mchprs")
+            if (engine !is Opt3xEngine) {
+                source.reply("opt3x is not the active engine")
+                return@submit
+            }
+            if (engine.paused) {
+                source.reply("opt3x is already paused")
+                return@submit
+            }
+            engine.pause(server.world)
+            source.success("opt3x paused, running interpreted until /opt3x resume")
+        }
+    }
+
+    private fun resume(source: CommandSource) {
+        val engine = engineOf(source)
+        val server = source.server
+        server.submit {
+            if (!engine.paused && engine.compiled) {
+                source.reply("opt3x is not paused")
+                return@submit
+            }
+            engine.resume()
+            server.compileRedstone(engine)
+            if (engine.compiled) {
+                source.success("opt3x resumed (compiled in ${engine.compileMillis}ms)")
+            } else {
+                source.reply("compile failed: ${engine.lastError}")
+            }
         }
     }
 
@@ -72,7 +97,7 @@ class Opt3xCommand : GogolCommand {
         }
         val circuit = engine.circuit
         if (circuit == null) {
-            source.reply("  state:    not compiled")
+            source.reply(if (engine.paused) "  state:    paused" else "  state:    not compiled")
             engine.lastError?.let { source.reply("  error:    $it") }
             return
         }
