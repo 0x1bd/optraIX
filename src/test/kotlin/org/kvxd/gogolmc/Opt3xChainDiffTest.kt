@@ -17,7 +17,6 @@ import org.kvxd.gogolmc.world.WorldGenerator
 import java.util.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFails
 import kotlin.test.assertTrue
 
 class Opt3xChainDiffTest {
@@ -118,13 +117,13 @@ class Opt3xChainDiffTest {
         return positions
     }
 
-    private fun run(seed: Long, lanes: Int, segments: Int, ticks: Int, togglePeriod: Int, fuse: Boolean = false): Int {
+    private fun run(seed: Long, lanes: Int, segments: Int, ticks: Int, togglePeriod: Int) {
         val reference = build(seed, lanes, segments)
         settle(reference.world)
         val candidate = build(seed, lanes, segments)
         settle(candidate.world)
 
-        val circuit = Opt3xCompiler.compile(candidate.world, eliminateWire = true, fuseChains = fuse)
+        val circuit = Opt3xCompiler.compile(candidate.world, eliminateWire = true)
         circuit.settle()
         circuit.writeAll(candidate.world)
 
@@ -168,11 +167,10 @@ class Opt3xChainDiffTest {
                 )
             }
         }
-        return circuit.fusedLinks
     }
 
     @Test
-    fun fusedChainsMatchInterpreter() {
+    fun diodeRunsMatchInterpreter() {
         for (seed in 1L..45L) run(seed, lanes = 4, segments = 9, ticks = 90, togglePeriod = 8)
     }
 
@@ -186,16 +184,6 @@ class Opt3xChainDiffTest {
         for (seed in 70L..120L) run(seed, lanes = 4, segments = 12, ticks = 140, togglePeriod = 2)
     }
 
-    @Test
-    fun chainFusionStillDivergesFromInterpreter() {
-        val failure = assertFails {
-            run(83L, lanes = 4, segments = 12, ticks = 140, togglePeriod = 2, fuse = true)
-        }
-        assertTrue(
-            failure.message.orEmpty().contains("mismatch"),
-            "expected fusion to diverge, got: ${failure.message}",
-        )
-    }
 
     @Test
     fun variedTogglePeriodsMatchInterpreter() {

@@ -8,6 +8,7 @@ object BlockEntities {
     fun defaultFor(state: Int): BlockEntity? = when (BlockStates.kindOf(state)) {
         BlockKind.Comparator -> BlockEntity.Comparator(0)
         BlockKind.Barrel -> BlockEntity.Container(ContainerKind.Barrel, 0, emptyList())
+        BlockKind.Chest -> BlockEntity.Container(ContainerKind.Chest, 0, emptyList())
         BlockKind.Furnace -> BlockEntity.Container(ContainerKind.Furnace, 0, emptyList())
         BlockKind.Hopper -> BlockEntity.Container(ContainerKind.Hopper, 0, emptyList())
         BlockKind.Sign, BlockKind.WallSign -> BlockEntity.Sign(EmptyRows, EmptyRows)

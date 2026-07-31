@@ -132,7 +132,7 @@ class Interaction(private val redstone: RedstoneEngine) {
                     )
                 )
             }
-            name == "minecraft:stone_button" -> {
+            name.endsWith("_button") -> {
                 val face = when (context.blockFace) {
                     BlockFace.Top -> LeverFace.Floor
                     BlockFace.Bottom -> LeverFace.Ceiling
@@ -140,7 +140,7 @@ class Interaction(private val redstone: RedstoneEngine) {
                 }
                 val facing = if (face == LeverFace.Wall) context.blockFace.unwrapDirection()
                 else playerDirection(context.yaw)
-                BlockStates.buttonState(face, facing, false)
+                BlockStates.buttonStateFor(Blocks.require(name), face, facing, false)
             }
             name == "minecraft:redstone_lamp" ->
                 BlockStates.lampState(redstone.redstoneLampShouldBeLit(world, pos))
@@ -246,19 +246,19 @@ class Interaction(private val redstone: RedstoneEngine) {
         val kind = BlockStates.kindOf(state)
         val checkBottom = when (kind) {
             BlockKind.RedstoneWire, BlockKind.Comparator, BlockKind.Repeater, BlockKind.RedstoneTorch -> true
-            BlockKind.Lever, BlockKind.StoneButton -> BlockStates.leverFaceOf(state) == LeverFace.Floor
+            BlockKind.Lever, BlockKind.Button -> BlockStates.leverFaceOf(state) == LeverFace.Floor
             BlockKind.Sign -> true
             else -> false
         }
 
         val checkTop = when (kind) {
-            BlockKind.Lever, BlockKind.StoneButton -> BlockStates.leverFaceOf(state) == LeverFace.Ceiling
+            BlockKind.Lever, BlockKind.Button -> BlockStates.leverFaceOf(state) == LeverFace.Ceiling
             else -> false
         }
 
         val checkParent = BlockStates.wallSignFacing(state) ?: when (kind) {
             BlockKind.TripwireHook -> BlockStates.directionOf(state)
-            BlockKind.StoneButton, BlockKind.Lever ->
+            BlockKind.Button, BlockKind.Lever ->
                 if (BlockStates.leverFaceOf(state) == LeverFace.Wall) BlockStates.directionOf(state) else null
             else -> null
         }

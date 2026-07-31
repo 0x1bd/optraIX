@@ -86,7 +86,7 @@ object Wire {
             BlockKind.RedstoneBlock,
             BlockKind.RedstoneWallTorch,
             BlockKind.TripwireHook,
-            BlockKind.StoneButton,
+            BlockKind.Button,
             BlockKind.Target,
             BlockKind.Lever -> true
             BlockKind.Repeater -> {

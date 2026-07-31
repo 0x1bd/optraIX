@@ -56,8 +56,7 @@ object RedstoneBench {
         val elapsed = System.nanoTime() - started
 
         println(
-            "  per tick: updates=${circuit.nodeUpdates / ticks} ticks=${circuit.nodeTicks / ticks} " +
-                "chainLinkVisits=${circuit.linkVisits / ticks}"
+            "  per tick: updates=${circuit.nodeUpdates / ticks} ticks=${circuit.nodeTicks / ticks}"
         )
         return Result("opt3x", ticks, elapsed, circuit.nodeUpdates, 0, circuit.nodeTicks)
     }

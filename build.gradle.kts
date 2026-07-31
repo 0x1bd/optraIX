@@ -61,7 +61,17 @@ tasks.register<JavaExec>("benchprof") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("org.kvxd.gogolmc.bench.RedstoneBench")
     systemProperty("opt3xOnly", "1")
-    jvmArgs("-Xmx6g",
-        "-XX:StartFlightRecording=duration=60s,filename=/tmp/claude-1000/-home-kvxd-IdeaProjects-gogolmc/f869ba00-614b-4c62-a55c-2c3ae049ac4a/scratchpad/opt3x.jfr,settings=profile")
+    val recording = layout.buildDirectory.file("opt3x.jfr").get().asFile
+    doFirst { recording.parentFile?.mkdirs() }
+    jvmArgs("-Xmx6g", "-XX:StartFlightRecording=duration=60s,filename=$recording,settings=profile")
     args = (project.findProperty("benchArgs") as String? ?: "60 40 30").split(" ")
+}
+
+tasks.register<JavaExec>("importworld") {
+    group = "tools"
+    description = "convert a vanilla anvil world into a gogolmc world file"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("org.kvxd.gogolmc.tools.AnvilImport")
+    jvmArgs("-Xmx6g")
+    args = (project.findProperty("importArgs") as String? ?: "").split(" ").filter { it.isNotEmpty() }
 }

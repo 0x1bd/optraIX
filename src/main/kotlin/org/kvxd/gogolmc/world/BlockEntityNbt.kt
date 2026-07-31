@@ -28,6 +28,7 @@ object BlockEntityNbt {
             "comparator" -> BlockEntity.Comparator(nbt["OutputSignal"]?.asIntOrNull() ?: 0)
             "furnace" -> loadContainer(nbt, ContainerKind.Furnace)
             "barrel" -> loadContainer(nbt, ContainerKind.Barrel)
+            "chest" -> loadContainer(nbt, ContainerKind.Chest)
             "hopper" -> loadContainer(nbt, ContainerKind.Hopper)
             "sign" -> loadSign(nbt)
             else -> null
@@ -121,6 +122,7 @@ object BlockEntityNbt {
         is BlockEntity.Container -> when (entity.kind) {
             ContainerKind.Furnace -> 0
             ContainerKind.Barrel -> 26
+            ContainerKind.Chest -> 1
             ContainerKind.Hopper -> 17
         }
     }

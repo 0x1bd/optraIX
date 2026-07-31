@@ -1,5 +1,7 @@
 package org.kvxd.gogolmc.redstone.opt3x
 
+import org.kvxd.gogolmc.block.BlockKind
+import org.kvxd.gogolmc.block.BlockStates
 import org.kvxd.gogolmc.block.property.BlockDirection
 import org.kvxd.gogolmc.block.property.BlockFace
 import org.kvxd.gogolmc.redstone.RedstoneEngine
@@ -91,9 +93,33 @@ class Opt3xEngine : RedstoneEngine {
                     }
                 }
             }
+            if (!mutatesRedstone(world.getBlock(pos))) return MchprsRedstone.onUse(world, pos)
             invalidate(world)
         }
         return MchprsRedstone.onUse(world, pos)
+    }
+
+    private fun mutatesRedstone(state: Int): Boolean = when (BlockStates.kindOf(state)) {
+        BlockKind.Repeater, BlockKind.Comparator, BlockKind.Lever,
+        BlockKind.Button, BlockKind.RedstoneWire, BlockKind.NoteBlock -> true
+        else -> false
+    }
+
+    override fun setPressurePlate(world: GameWorld, pos: BlockPos, powered: Boolean) {
+        val active = circuit
+        if (active != null) {
+            val node = active.nodeAt(pos)
+            if (node >= 0 && active.typeOf(node) == NodeType.PressurePlate) {
+                active.setSource(node, powered)
+                active.flush(world)
+                return
+            }
+        }
+        val state = world.getBlock(pos)
+        if ((BlockStates.pressurePlatePowered(state) ?: return) == powered) return
+        world.setBlock(pos, BlockStates.withPowered(state, powered))
+        MchprsRedstone.updateSurroundingBlocks(world, pos)
+        MchprsRedstone.updateSurroundingBlocks(world, pos.offset(BlockFace.Bottom))
     }
 
     override fun update(world: World, pos: BlockPos) {

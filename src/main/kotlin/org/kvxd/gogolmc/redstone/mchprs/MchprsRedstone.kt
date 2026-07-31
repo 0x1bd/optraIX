@@ -34,7 +34,7 @@ object MchprsRedstone : RedstoneEngine {
             }
             BlockKind.RedstoneBlock -> 15
             BlockKind.Lever -> if (BlockStates.powered[state]) 15 else 0
-            BlockKind.StoneButton -> if (BlockStates.powered[state]) 15 else 0
+            BlockKind.Button -> if (BlockStates.powered[state]) 15 else 0
             BlockKind.Repeater -> {
                 val facing = BlockStates.directionOf(state)
                 if (facing != null && facing.blockFace() == side && BlockStates.powered[state]) 15 else 0
@@ -70,7 +70,7 @@ object MchprsRedstone : RedstoneEngine {
                 if (BlockStates.lit[state] && side == BlockFace.Bottom) 15 else 0
             BlockKind.RedstoneWallTorch ->
                 if (BlockStates.lit[state] && side == BlockFace.Bottom) 15 else 0
-            BlockKind.Lever, BlockKind.StoneButton -> {
+            BlockKind.Lever, BlockKind.Button -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state)
                 val matches = when (side) {
@@ -241,11 +241,11 @@ object MchprsRedstone : RedstoneEngine {
                     world.setBlock(pos, BlockStates.lampState(false))
                 }
             }
-            BlockKind.StoneButton -> {
+            BlockKind.Button -> {
                 if (BlockStates.powered[state]) {
                     val face = BlockStates.leverFaceOf(state)
                     val facing = BlockStates.directionOf(state) ?: BlockDirection.North
-                    world.setBlock(pos, BlockStates.buttonState(face, facing, false))
+                    world.setBlock(pos, BlockStates.withPowered(state, false))
                     updateSurroundingBlocks(world, pos)
                     updateAttachedFace(world, pos, face, facing)
                 }
@@ -331,12 +331,12 @@ object MchprsRedstone : RedstoneEngine {
                 updateAttachedFace(world, pos, face, facing)
                 true
             }
-            BlockKind.StoneButton -> {
+            BlockKind.Button -> {
                 if (!BlockStates.powered[state]) {
                     val face = BlockStates.leverFaceOf(state)
                     val facing = BlockStates.directionOf(state) ?: BlockDirection.North
-                    world.setBlock(pos, BlockStates.buttonState(face, facing, true))
-                    world.scheduleTick(pos, 10, TickPriority.Normal)
+                    world.setBlock(pos, BlockStates.withPowered(state, true))
+                    world.scheduleTick(pos, BlockStates.buttonDuration(state), TickPriority.Normal)
                     updateSurroundingBlocks(world, pos)
                     updateAttachedFace(world, pos, face, facing)
                 }

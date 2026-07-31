@@ -25,20 +25,7 @@ class Opt3xCircuit internal constructor(
     internal val edges: IntArray,
     internal val index: HashMap<Long, Int>,
     private val state: LongArray,
-    private val chainIndexOf: IntArray,
-    private val chainOffset: IntArray,
-    private val chainLength: IntArray,
-    private val chainState: LongArray,
-    private val chainConst: LongArray,
-    private val linkDelay: ByteArray,
-    private val linkPos: LongArray,
-    private val linkFacing: ByteArray,
-    private val linkOn: ByteArray,
 ) {
-
-    val chainCount: Int get() = chainOffset.size
-
-    val fusedLinks: Int get() = linkOn.size
 
     private val defCounts = ByteArray(count * 16)
     private val sideCounts = ByteArray(count * 16)
@@ -46,14 +33,6 @@ class Opt3xCircuit internal constructor(
     private val scheduler = TickScheduler(count)
     private val consumerQueue = IntQueue(1024)
     private val queuedFlag = BooleanArray(count)
-    private val chainQueued = BooleanArray(chainOffset.size)
-    private val chainInputBits = LongArray((chainOffset.size + 63) ushr 6)
-    private val chainShadow = LongArray(chainOffset.size)
-    private var chainPending = LongArray(chainOffset.size + 1)
-    private var chainPendingCount = 0
-    private var chainRunning = LongArray(chainOffset.size + 1)
-    private val chainEmitData = Array(TickScheduler.Priorities) { IntArray(chainOffset.size + 1) }
-    private val chainEmitSize = IntArray(TickScheduler.Priorities)
     private val dirty = BooleanArray(count)
     private val dirtyList = IntStack(1024)
     private val soundEvents = IntStack(16)
@@ -64,12 +43,9 @@ class Opt3xCircuit internal constructor(
     var nodeTicks: Long = 0
         private set
 
-    var linkVisits: Long = 0
-        private set
-
     val edgeCount: Int get() = edges.size
 
-    val pendingTicks: Int get() = scheduler.queued + chainPendingCount
+    val pendingTicks: Int get() = scheduler.queued
 
     init {
         for (node in 0 until count) {
@@ -239,26 +215,6 @@ class Opt3xCircuit internal constructor(
                 }
             }
 
-            NodeType.Chain -> {
-                val chain = chainIndexOf[node]
-                val base = chain shl 2
-                val t0 = chainState[base + 1]
-                val t1 = chainState[base + 2]
-                val t2 = chainState[base + 3]
-                val powered = chainState[base]
-                val input = if (defPowered(word)) 1L else 0L
-                val slot = chain ushr 6
-                chainInputBits[slot] =
-                    (chainInputBits[slot] and (1L shl chain).inv()) or (input shl chain)
-                if (((t0 or t1 or t2) and 1L) == 0L && (powered and 1L) != input) {
-                    chainState[base + 1] = t0 or (chainConst[base + 1] and 1L)
-                    chainState[base + 2] = t1 or (chainConst[base + 2] and 1L)
-                    chainState[base + 3] = t2 or (chainConst[base + 3] and 1L)
-                    markDirty(node)
-                    if (!chainQueued[chain]) chainWake(node, chain)
-                }
-            }
-
             NodeType.Trapdoor -> {
                 val shouldBePowered = defPowered(word)
                 if (((word and OnBit) != 0L) != shouldBePowered) {
@@ -319,107 +275,6 @@ class Opt3xCircuit internal constructor(
         val sides = maxOfMask(word, SideMaskShift)
         if (input > sides) return true
         return sides == input && (word and CompareBit) != 0L
-    }
-
-    private fun chainWake(node: Int, chain: Int) {
-        val length = chainLength[chain]
-        val tailOn = linkOn[chainOffset[chain] + length - 1].toLong()
-        val on = if ((chainState[chain shl 2] ushr (length - 1)) and 1L != 0L) 1L else 0L
-        chainPending[chainPendingCount++] = node.toLong() or (length.toLong() shl 26) or
-            (chain.toLong() shl 32) or (tailOn shl 58) or (on shl 62)
-        chainQueued[chain] = true
-    }
-
-    private fun runChainPass() {
-        val swap = chainRunning
-        chainRunning = chainPending
-        chainPending = swap
-        val size = chainPendingCount
-        chainPendingCount = 0
-        val list = chainRunning
-        val pending = chainPending
-        val words = chainState
-        val fixed = chainConst
-        val emitSize = chainEmitSize
-        val emitData = chainEmitData
-        val inputs = chainInputBits
-        var visits = 0L
-        var write = 0
-        var read = 0
-        while (read < size) {
-            val entry = list[read]
-            val node = (entry and 0x03FFFFFFL).toInt()
-            val length = ((entry ushr 26) and 0x3FL).toInt()
-            val chain = ((entry ushr 32) and 0x03FFFFFFL).toInt()
-            visits += length
-
-            val base = chain shl 2
-            val cin = (inputs[chain ushr 6] ushr chain) and 1L
-            val powered = words[base]
-            val t0 = words[base + 1]
-            val t1 = words[base + 2]
-            val t2 = words[base + 3]
-
-            val expired = t0 and t1.inv() and t2.inv()
-            val running = t0 or t1 or t2
-            val idle = running.inv() or expired
-            val n0 = t0 xor running
-            val borrow0 = t0.inv() and running
-            val n1 = t1 xor borrow0
-            val n2 = t2 xor (t1.inv() and borrow0)
-
-            val compare = expired and fixed[base]
-            val plain = expired xor compare
-            val generate = (powered xor plain) and compare.inv()
-            val carryIn = generate or compare or (plain and powered)
-            val next = ((carryIn + generate + cin) xor carryIn xor generate) ushr 1
-
-            val rearm = idle and (((next shl 1) or cin) xor next)
-            val u0 = n0 or (fixed[base + 1] and rearm)
-            val u1 = n1 or (fixed[base + 2] and rearm)
-            val u2 = n2 or (fixed[base + 3] and rearm)
-
-            words[base] = next
-            words[base + 1] = u0
-            words[base + 2] = u1
-            words[base + 3] = u2
-
-            read++
-            if (next != powered) markDirty(node)
-
-            val tail = length - 1
-            var updated = entry
-            if (((next ushr tail) xor (entry ushr 62)) and 1L != 0L) {
-                updated = entry xor (1L shl 62)
-                val word = state[node]
-                val out = ((entry ushr 58) and 0xFL).toInt() and -((next ushr tail) and 1L).toInt()
-                val front = ((word ushr 10) and 1L).toInt()
-                val tailOn = ((powered ushr tail) and 1L).toInt()
-                val tailIn = ((powered ushr ((tail - 1) and 63)) and 1L).toInt()
-                val priority = (2 - (tailOn and (tailIn xor 1))) and (front - 1)
-                val slot = emitSize[priority]
-                emitData[priority][slot] = node or (out shl 26)
-                emitSize[priority] = slot + 1
-            }
-
-            if ((u0 or u1 or u2) != 0L) {
-                pending[write++] = updated
-            } else {
-                chainQueued[chain] = false
-            }
-        }
-        chainPendingCount = write
-        if (Stats) {
-            nodeTicks += size
-            linkVisits += visits
-        }
-    }
-
-    private fun chainWakePriority(word: Long, powered: Long, length: Int, cin: Long): Int {
-        if ((word and FrontDiodeBit) != 0L) return 0
-        val tail = length - 1
-        val tailInput = if (length == 1) cin else (powered ushr (tail - 1)) and 1L
-        return if (((powered ushr tail) and 1L) == 1L && tailInput == 0L) 1 else 2
     }
 
     private fun tickNode(node: Int) {
@@ -496,18 +351,8 @@ class Opt3xCircuit internal constructor(
 
     fun tick() {
         val bucket = scheduler.nextBucket()
-        if (scheduler.queued == 0 && chainPendingCount == 0) return
-        runChainPass()
+        if (scheduler.queued == 0) return
         for (priority in 0 until TickScheduler.Priorities) {
-            val emits = chainEmitData[priority]
-            val emitCount = chainEmitSize[priority]
-            chainEmitSize[priority] = 0
-            var slot = 0
-            while (slot < emitCount) {
-                val packed = emits[slot++]
-                emit(packed and TargetMask, (packed ushr 26) and 0xF)
-                drainUpdates()
-            }
             val items = scheduler.itemsAt(bucket, priority)
             val size = scheduler.sizeAt(bucket, priority)
             var cursor = 0
@@ -531,18 +376,9 @@ class Opt3xCircuit internal constructor(
         scheduler.forEachPending { node, delay, priority ->
             world.scheduleTick(BlockPos.unpack(posKey[node]), delay, TickPriority.entries[priority])
         }
-        for (slot in 0 until chainPendingCount) {
-            val node = (chainPending[slot] and 0x03FFFFFFL).toInt()
-            world.scheduleTick(BlockPos.unpack(posKey[node]), 1, TickPriority.Highest)
-        }
     }
 
     internal fun importPendingTick(node: Int, delay: Int, priority: Int) {
-        if ((state[node] and 0xFL).toInt() == NodeType.Chain) {
-            val chain = chainIndexOf[node]
-            if (!chainQueued[chain]) chainWake(node, chain)
-            return
-        }
         scheduler.schedule(node, delay.coerceIn(1, TickScheduler.WheelSize - 1), priority)
     }
 
@@ -558,7 +394,7 @@ class Opt3xCircuit internal constructor(
     fun pressButton(node: Int) {
         if ((state[node] and OnBit) != 0L) return
         setSource(node, true)
-        scheduler.schedule(node, 10, 3)
+        scheduler.schedule(node, delayData[node].toInt(), 3)
     }
 
     fun nodeAt(pos: BlockPos): Int = index[pos.asLong()] ?: -1
@@ -594,11 +430,7 @@ class Opt3xCircuit internal constructor(
                 BlockDirection.Values[facingData[node].toInt()],
                 on,
             )
-            NodeType.Button -> BlockStates.buttonState(
-                BlockStates.leverFaceOf(base),
-                BlockDirection.Values[facingData[node].toInt()],
-                on,
-            )
+            NodeType.Button -> BlockStates.withPowered(base, on)
             NodeType.PressurePlate -> BlockStates.withPowered(base, on)
             NodeType.NoteBlock -> BlockStates.noteBlockState(
                 Instrument.Values[modeData[node].toInt()],
@@ -618,52 +450,10 @@ class Opt3xCircuit internal constructor(
         return result
     }
 
-    private fun writeChain(world: World, node: Int) {
-        val chain = chainIndexOf[node]
-        val offset = chainOffset[chain]
-        val powered = chainState[chain shl 2]
-        var pendingLinks = powered xor chainShadow[chain]
-        chainShadow[chain] = powered
-        while (pendingLinks != 0L) {
-            val i = java.lang.Long.numberOfTrailingZeros(pendingLinks)
-            pendingLinks = pendingLinks and (pendingLinks - 1)
-            val slot = offset + i
-            val pos = BlockPos.unpack(linkPos[slot])
-            val kind = linkDelay[slot].toInt()
-            val on = ((powered ushr i) and 1L) != 0L
-            val out = if (on) linkOn[slot].toInt() else 0
-            if ((kind and 0x80) != 0) {
-                world.setBlock(
-                    pos,
-                    BlockStates.comparatorState(
-                        BlockDirection.Values[linkFacing[slot].toInt()],
-                        ComparatorMode.Compare,
-                        out > 0,
-                    ),
-                )
-                world.setBlockEntity(pos, BlockEntity.Comparator(out))
-            } else {
-                world.setBlock(
-                    pos,
-                    BlockStates.repeaterState(
-                        kind and 7,
-                        BlockDirection.Values[linkFacing[slot].toInt()],
-                        false,
-                        out > 0,
-                    ),
-                )
-            }
-        }
-    }
-
     fun flush(world: World) {
         while (!dirtyList.isEmpty) {
             val node = dirtyList.pop()
             dirty[node] = false
-            if (typeOf(node) == NodeType.Chain) {
-                writeChain(world, node)
-                continue
-            }
             val pos = BlockPos.unpack(posKey[node])
             world.setBlock(pos, stateOf(node))
             if (typeOf(node) == NodeType.Comparator) {
@@ -685,14 +475,7 @@ class Opt3xCircuit internal constructor(
     }
 
     fun writeAll(world: World) {
-        for (chain in chainShadow.indices) {
-            chainShadow[chain] = chainState[chain shl 2] xor ((1L shl chainLength[chain]) - 1L)
-        }
         for (node in 0 until count) {
-            if (typeOf(node) == NodeType.Chain) {
-                writeChain(world, node)
-                continue
-            }
             val pos = BlockPos.unpack(posKey[node])
             world.setBlock(pos, stateOf(node))
             if (typeOf(node) == NodeType.Comparator) {
@@ -707,7 +490,6 @@ class Opt3xCircuit internal constructor(
     fun resetStats() {
         nodeUpdates = 0
         nodeTicks = 0
-        linkVisits = 0
     }
 
     internal fun peekNext(priority: Int): IntArray = scheduler.peekNext(priority)

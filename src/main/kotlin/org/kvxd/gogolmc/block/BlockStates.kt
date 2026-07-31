@@ -21,6 +21,8 @@ object BlockStates {
         "oak", "spruce", "birch", "acacia", "jungle", "dark_oak", "crimson", "warped",
     ).map { "minecraft:${it}_wall_sign" }.toHashSet()
 
+    private val shortButtonNames = setOf("minecraft:stone_button", "minecraft:polished_blackstone_button")
+
     private val pressurePlateNames = listOf(
         "oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry",
         "bamboo", "crimson", "warped", "polished_blackstone", "stone",
@@ -145,7 +147,7 @@ object BlockStates {
                 name == "minecraft:redstone_wall_torch" -> BlockKind.RedstoneWallTorch
                 name == "minecraft:redstone_block" -> BlockKind.RedstoneBlock
                 name == "minecraft:lever" -> BlockKind.Lever
-                name == "minecraft:stone_button" -> BlockKind.StoneButton
+                name.endsWith("_button") -> BlockKind.Button
                 name == "minecraft:repeater" -> BlockKind.Repeater
                 name == "minecraft:comparator" -> BlockKind.Comparator
                 name == "minecraft:redstone_lamp" -> BlockKind.RedstoneLamp
@@ -155,6 +157,7 @@ object BlockStates {
                 name == "minecraft:iron_trapdoor" -> BlockKind.IronTrapdoor
                 name == "minecraft:note_block" -> BlockKind.NoteBlock
                 name == "minecraft:barrel" -> BlockKind.Barrel
+                name == "minecraft:chest" -> BlockKind.Chest
                 name == "minecraft:furnace" -> BlockKind.Furnace
                 name == "minecraft:hopper" -> BlockKind.Hopper
                 name == "minecraft:cauldron" -> BlockKind.Cauldron
@@ -304,7 +307,7 @@ object BlockStates {
 
     fun hasBlockEntity(state: Int): Boolean = when (kindOf(state)) {
         BlockKind.Sign, BlockKind.WallSign, BlockKind.Comparator,
-        BlockKind.Barrel, BlockKind.Furnace, BlockKind.Hopper -> true
+        BlockKind.Barrel, BlockKind.Chest, BlockKind.Furnace, BlockKind.Hopper -> true
         else -> false
     }
 
@@ -405,6 +408,18 @@ object BlockStates {
         (if (open) 0 else 1) * trapdoorOpenProp.stride +
         (if (powered) 0 else 1) * trapdoorPoweredProp.stride +
         (if (waterlogged) 0 else 1) * trapdoorWaterloggedProp.stride
+
+    fun buttonDuration(state: Int): Int =
+        if (Blocks.nameOf(state) in shortButtonNames) 10 else 15
+
+    fun buttonStateFor(type: BlockType, face: LeverFace, facing: BlockDirection, powered: Boolean): Int =
+        type.stateOf(
+            mapOf(
+                "face" to face.name.lowercase(),
+                "facing" to facing.name.lowercase(),
+                "powered" to if (powered) "true" else "false",
+            )
+        )
 
     fun withPowered(state: Int, value: Boolean): Int {
         val type = Blocks.typeOf(state)

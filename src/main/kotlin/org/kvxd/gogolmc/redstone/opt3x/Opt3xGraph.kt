@@ -19,8 +19,6 @@ class GraphNode(
     var farOverride: Int = -1
     var note: Int = 0
     var instrument: Int = 0
-    var chainLinks: List<GraphNode>? = null
-    var onStrength: Int = 15
 
     val inputs = ArrayList<GraphEdge>()
     val outputs = ArrayList<GraphEdge>()

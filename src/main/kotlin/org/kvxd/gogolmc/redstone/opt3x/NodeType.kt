@@ -14,13 +14,12 @@ object NodeType {
     const val Constant = 9
     const val Trapdoor = 10
     const val NoteBlock = 11
-    const val Chain = 12
 
-    const val Count = 13
+    const val Count = 12
 
     val names = arrayOf(
         "wire", "repeater", "comparator", "torch", "wall_torch", "lamp",
-        "lever", "button", "pressure_plate", "constant", "trapdoor", "note_block", "chain",
+        "lever", "button", "pressure_plate", "constant", "trapdoor", "note_block",
     )
 
     fun isSource(type: Int): Boolean =

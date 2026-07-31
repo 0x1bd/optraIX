@@ -6,6 +6,7 @@ import kotlinx.coroutines.launch
 import org.kvxd.gogolmc.Log
 import org.kvxd.gogolmc.ServerConfig
 import org.kvxd.gogolmc.block.property.BlockFace
+import org.kvxd.gogolmc.block.BlockStates
 import org.kvxd.gogolmc.block.Blocks
 import org.kvxd.gogolmc.block.ItemStack
 import org.kvxd.gogolmc.block.Items
@@ -216,6 +217,27 @@ class GogolServer(val config: ServerConfig) {
     private var lastEditAt = 0L
     private var lastSidebar = 0L
 
+    private val plateHeldUntil = HashMap<Long, Long>()
+
+    private fun maintainPressurePlates() {
+        val now = System.currentTimeMillis()
+        for (player in players) {
+            val pos = BlockPos(floor(player.x).toInt(), floor(player.y).toInt(), floor(player.z).toInt())
+            if (BlockStates.pressurePlatePowered(world.getBlock(pos)) == null) continue
+            if (plateHeldUntil.put(pos.asLong(), now + PlateReleaseMillis) == null) {
+                engine.setPressurePlate(world, pos, true)
+            }
+        }
+        if (plateHeldUntil.isEmpty()) return
+        val iterator = plateHeldUntil.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            if (entry.value > now) continue
+            iterator.remove()
+            engine.setPressurePlate(world, BlockPos.unpack(entry.key), false)
+        }
+    }
+
     private fun maintainRedstoneCompile() {
         val opt3x = engine as? Opt3xEngine ?: return
         val counter = opt3x.changeCounter
@@ -348,6 +370,7 @@ class GogolServer(val config: ServerConfig) {
         broadcastMovement()
         maintainConnections()
         maintainSelectionOutlines()
+        maintainPressurePlates()
         maintainRedstoneCompile()
         refreshSidebar()
         maintainAutosave()
@@ -948,6 +971,7 @@ class GogolServer(val config: ServerConfig) {
         const val KeepAliveIntervalMillis = 5_000L
         const val SelectionOutlineIntervalMillis = 1_000L
         const val RecompileDelayMillis = 3_000L
+        const val PlateReleaseMillis = 1_000L
         const val SidebarIntervalMillis = 500L
         const val WaitForChunksReason: Short = 13
         const val BatchTargetNanos = 500_000L

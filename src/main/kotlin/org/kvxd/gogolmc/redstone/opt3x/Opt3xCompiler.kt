@@ -24,13 +24,11 @@ object Opt3xCompiler {
     fun compile(
         world: GameWorld,
         eliminateWire: Boolean = true,
-        fuseChains: Boolean = false,
     ): Opt3xCircuit {
         val graph = Opt3xGraph()
         scan(world, graph)
         for (node in graph.nodes) buildEdges(world, graph, node)
-        var resolved = if (eliminateWire) compact(eliminateWires(graph)) else graph
-        if (fuseChains) resolved = ChainFuser.fuse(resolved)
+        val resolved = if (eliminateWire) compact(eliminateWires(graph)) else graph
         val circuit = flatten(resolved)
         for (entry in world.snapshotTicks()) {
             val node = circuit.nodeAt(entry.pos)
@@ -70,11 +68,11 @@ object Opt3xCompiler {
             BlockKind.RedstoneWallTorch -> NodeType.WallTorch
             BlockKind.RedstoneLamp -> NodeType.Lamp
             BlockKind.Lever -> NodeType.Lever
-            BlockKind.StoneButton -> NodeType.Button
+            BlockKind.Button -> NodeType.Button
             BlockKind.RedstoneBlock -> NodeType.Constant
             BlockKind.IronTrapdoor -> NodeType.Trapdoor
             BlockKind.NoteBlock -> NodeType.NoteBlock
-            BlockKind.Observer, BlockKind.TripwireHook, BlockKind.Target ->
+            BlockKind.Observer, BlockKind.TripwireHook ->
                 throw Opt3xCompileException("${Blocks.nameOf(state)} is not supported by opt3x")
             else -> -1
         }
@@ -125,10 +123,17 @@ object Opt3xCompiler {
 
             NodeType.Lamp -> node.on = BlockStates.lit[state]
 
-            NodeType.Lever, NodeType.Button -> {
+            NodeType.Lever -> {
                 node.facing = (BlockStates.directionOf(state) ?: BlockDirection.North).ordinal
                 node.on = BlockStates.powered[state]
                 node.output = if (node.on) 15 else 0
+            }
+
+            NodeType.Button -> {
+                node.facing = (BlockStates.directionOf(state) ?: BlockDirection.North).ordinal
+                node.on = BlockStates.powered[state]
+                node.output = if (node.on) 15 else 0
+                node.delay = BlockStates.buttonDuration(state)
             }
 
             NodeType.PressurePlate -> {
@@ -159,7 +164,7 @@ object Opt3xCompiler {
                 val facing = BlockStates.directionOf(state)
                 facing != null && facing.blockFace() != side
             }
-            BlockKind.RedstoneBlock, BlockKind.Lever, BlockKind.StoneButton -> true
+            BlockKind.RedstoneBlock, BlockKind.Lever, BlockKind.Button -> true
             BlockKind.Repeater, BlockKind.Comparator ->
                 BlockStates.directionOf(state)?.blockFace() == side
             BlockKind.RedstoneWire -> when {
@@ -180,7 +185,7 @@ object Opt3xCompiler {
         if (BlockStates.pressurePlatePowered(state) != null) return side == BlockFace.Top
         return when (BlockStates.kindOf(state)) {
             BlockKind.RedstoneTorch, BlockKind.RedstoneWallTorch -> side == BlockFace.Bottom
-            BlockKind.Lever, BlockKind.StoneButton -> {
+            BlockKind.Lever, BlockKind.Button -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state)
                 when (side) {
@@ -524,40 +529,6 @@ object Opt3xCompiler {
         edgeStart[count] = total
 
         val edges = IntArray(total)
-        val chainIndexOf = IntArray(count) { -1 }
-        val chainNodes = graph.nodes.filter { it.chainLinks != null }.sortedBy { rank[it.id] }
-        val chainOffset = IntArray(chainNodes.size)
-        val chainLength = IntArray(chainNodes.size)
-        val totalLinks = chainNodes.sumOf { it.chainLinks!!.size }
-        val linkDelay = ByteArray(totalLinks)
-        val linkPos = LongArray(totalLinks)
-        val linkFacing = ByteArray(totalLinks)
-        val linkOn = ByteArray(totalLinks)
-        val chainState = LongArray(chainNodes.size * 4)
-        val chainConst = LongArray(chainNodes.size * 4)
-        var linkCursor = 0
-        for ((chainIndex, node) in chainNodes.withIndex()) {
-            val links = node.chainLinks!!
-            chainIndexOf[rank[node.id]] = chainIndex
-            chainOffset[chainIndex] = linkCursor
-            chainLength[chainIndex] = links.size
-            val base = chainIndex * 4
-            for ((linkIndex, link) in links.withIndex()) {
-                val comparator = link.type == NodeType.Comparator
-                val delay = if (comparator) 1 else link.delay
-                val bit = 1L shl linkIndex
-                if (link.output > 0) chainState[base] = chainState[base] or bit
-                if (comparator) chainConst[base] = chainConst[base] or bit
-                if (delay and 1 != 0) chainConst[base + 1] = chainConst[base + 1] or bit
-                if (delay and 2 != 0) chainConst[base + 2] = chainConst[base + 2] or bit
-                if (delay and 4 != 0) chainConst[base + 3] = chainConst[base + 3] or bit
-                linkDelay[linkCursor] = (delay or (if (comparator) 0x80 else 0)).toByte()
-                linkOn[linkCursor] = link.onStrength.toByte()
-                linkPos[linkCursor] = link.pos.asLong()
-                linkFacing[linkCursor] = link.facing.toByte()
-                linkCursor++
-            }
-        }
         val defaultInputs = IntArray(count)
         val sideInputs = IntArray(count)
         for (node in graph.nodes) {
@@ -609,15 +580,6 @@ object Opt3xCompiler {
             edges = edges,
             index = index,
             state = state,
-            chainIndexOf = chainIndexOf,
-            chainOffset = chainOffset,
-            chainLength = chainLength,
-            chainState = chainState,
-            chainConst = chainConst,
-            linkDelay = linkDelay,
-            linkPos = linkPos,
-            linkFacing = linkFacing,
-            linkOn = linkOn,
         )
     }
 }
