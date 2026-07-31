@@ -3,6 +3,7 @@ package org.kvxd.gogolmc.command
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.exceptions.CommandSyntaxException
 import org.kvxd.gogolmc.command.server.HelpCommand
+import org.kvxd.gogolmc.command.server.Opt3xCommand
 import org.kvxd.gogolmc.command.server.SaveCommand
 import org.kvxd.gogolmc.command.server.SpeedCommand
 import org.kvxd.gogolmc.command.server.StatsCommand
@@ -47,6 +48,7 @@ class CommandRegistry(private val server: GogolServer) {
         SpeedCommand(),
         TpsCommand(),
         StatsCommand(),
+        Opt3xCommand(),
         SaveCommand(),
         TeleportCommand(),
         Pos1Command(worldEdit),

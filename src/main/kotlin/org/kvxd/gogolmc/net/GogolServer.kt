@@ -74,6 +74,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Position
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Slot
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.SoundSource
 import io.ktor.network.sockets.InetSocketAddress
+import org.kvxd.gogolmc.redstone.opt3x.Opt3xEngine
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
@@ -87,7 +88,7 @@ class GogolServer(val config: ServerConfig) {
 
     val world = GameWorld()
 
-    var engine: RedstoneEngine = MchprsRedstone
+    var engine: RedstoneEngine = Opt3xEngine()
         private set
 
     var interaction = Interaction(engine)
@@ -195,39 +196,49 @@ class GogolServer(val config: ServerConfig) {
     private fun startGameLoop() {
         val thread = Thread({
             var lastSample = System.nanoTime()
-            var ticksSinceSample = 0
-            var msptAccumulator = 0.0
+            var ticksSinceSample = 0L
+            var nanosSinceSample = 0L
             var nextTick = System.nanoTime()
-            while (running) {
-                val tickStart = System.nanoTime()
+            var batch = 1
 
-                while (true) {
-                    val task = tasks.poll() ?: break
-                    runCatching { task.run() }
+            while (running) {
+                val target = targetTps
+                val batchStart = System.nanoTime()
+
+                if (target > 0) {
+                    runHousekeeping()
+                    engine.tickWorld(world)
+                    publishWorldChanges()
+                    currentTick++
+                    ticksSinceSample++
+                } else {
+                    var executed = 0
+                    while (executed < batch && running) {
+                        engine.tickWorld(world)
+                        publishWorldChanges()
+                        executed++
+                    }
+                    currentTick += executed
+                    ticksSinceSample += executed
+                    runHousekeeping()
                 }
 
-                world.tickScheduled { pos -> engine.tick(world, pos) }
-                flushWorldChanges()
-                broadcastMovement()
-                maintainConnections()
-                maintainSelectionOutlines()
-                maintainAutosave()
-                currentTick++
+                val batchNanos = System.nanoTime() - batchStart
+                nanosSinceSample += batchNanos
 
-                val elapsed = System.nanoTime() - tickStart
-                msptAccumulator += elapsed / 1_000_000.0
-                ticksSinceSample++
+                if (target <= 0) {
+                    batch = nextBatchSize(batch, batchNanos)
+                }
 
                 val sampleElapsed = System.nanoTime() - lastSample
-                if (sampleElapsed >= 1_000_000_000L) {
+                if (sampleElapsed >= 1_000_000_000L && ticksSinceSample > 0) {
                     measuredTps = ticksSinceSample * 1_000_000_000.0 / sampleElapsed
-                    averageMspt = msptAccumulator / ticksSinceSample
+                    averageMspt = nanosSinceSample / 1_000_000.0 / ticksSinceSample
                     ticksSinceSample = 0
-                    msptAccumulator = 0.0
+                    nanosSinceSample = 0
                     lastSample = System.nanoTime()
                 }
 
-                val target = targetTps
                 if (target <= 0) {
                     nextTick = System.nanoTime()
                     continue
@@ -248,6 +259,33 @@ class GogolServer(val config: ServerConfig) {
         thread.isDaemon = true
         tickThread = thread
         thread.start()
+    }
+
+    private fun nextBatchSize(current: Int, batchNanos: Long): Int {
+        if (batchNanos > BatchTargetNanos && current > 1) return maxOf(1, current shr 1)
+        if (batchNanos < BatchTargetNanos / 2 && current < MaxBatch) return current shl 1
+        return current
+    }
+
+    private fun runHousekeeping() {
+        while (true) {
+            val task = tasks.poll() ?: break
+            runCatching { task.run() }
+        }
+        broadcastMovement()
+        maintainConnections()
+        maintainSelectionOutlines()
+        maintainAutosave()
+    }
+
+    private fun publishWorldChanges() {
+        if (world.changedBlocks.isEmpty() && world.changedBlockEntities.isEmpty()) return
+        if (players.isEmpty()) {
+            world.changedBlocks.clear()
+            world.changedBlockEntities.clear()
+            return
+        }
+        flushWorldChanges()
     }
 
     private fun flushWorldChanges() {
@@ -832,5 +870,7 @@ class GogolServer(val config: ServerConfig) {
         const val KeepAliveIntervalMillis = 5_000L
         const val SelectionOutlineIntervalMillis = 1_000L
         const val WaitForChunksReason: Short = 13
+        const val BatchTargetNanos = 500_000L
+        const val MaxBatch = 65_536
     }
 }

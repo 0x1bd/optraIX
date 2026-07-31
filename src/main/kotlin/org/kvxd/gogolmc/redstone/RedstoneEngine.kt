@@ -3,6 +3,7 @@ package org.kvxd.gogolmc.redstone
 import org.kvxd.gogolmc.block.property.BlockDirection
 import org.kvxd.gogolmc.block.property.BlockFace
 import org.kvxd.gogolmc.world.BlockPos
+import org.kvxd.gogolmc.world.GameWorld
 import org.kvxd.gogolmc.world.World
 
 interface RedstoneEngine {
@@ -10,6 +11,10 @@ interface RedstoneEngine {
     val name: String
 
     val stats: RedstoneStats
+
+    fun tickWorld(world: GameWorld) {
+        world.tickScheduled { pos -> tick(world, pos) }
+    }
 
     fun onUse(world: World, pos: BlockPos): Boolean
 
