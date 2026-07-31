@@ -95,8 +95,8 @@ object RedstoneBench {
         val circuit = BenchCircuit.busses(lanes, segments)
         println("built in ${(System.nanoTime() - built) / 1_000_000}ms")
         println(
-            "components=${circuit.components} dust=${circuit.dust} " +
-                "repeaters=${circuit.repeaters} comparators=${circuit.comparators}"
+            "components=${circuit.components} dust=${circuit.dust} repeaters=${circuit.repeaters} " +
+                "comparators=${circuit.comparators} torches=${circuit.torches}"
         )
 
         if (System.getProperty("opt3xOnly") != null) {

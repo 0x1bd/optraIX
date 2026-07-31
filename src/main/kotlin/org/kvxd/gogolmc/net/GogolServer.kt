@@ -146,6 +146,8 @@ class GogolServer(val config: ServerConfig) {
     private var tickThread: Thread? = null
 
     suspend fun start(scope: CoroutineScope) {
+        publishScope = scope
+
         runCatching {
             val restored = WorldStorage.load(world, config.worldFile)
             if (restored > 0) println("restored $restored chunks from ${config.worldFile.path}")
@@ -376,6 +378,10 @@ class GogolServer(val config: ServerConfig) {
         maintainAutosave()
     }
 
+    private var publishScope: CoroutineScope? = null
+    private var lastPublish = 0L
+    private val publishing = java.util.concurrent.atomic.AtomicBoolean(false)
+
     private fun publishWorldChanges() {
         if (world.changedBlocks.isEmpty() && world.changedBlockEntities.isEmpty()) return
         if (players.isEmpty()) {
@@ -383,61 +389,93 @@ class GogolServer(val config: ServerConfig) {
             world.changedBlockEntities.clear()
             return
         }
-        flushWorldChanges()
+        val now = System.nanoTime()
+        if (now - lastPublish < PublishIntervalNanos) return
+        if (!publishing.compareAndSet(false, true)) return
+        lastPublish = now
+
+        val blocks = LongArray(world.changedBlocks.size)
+        val states = IntArray(blocks.size)
+        var index = 0
+        for (packed in world.changedBlocks) {
+            blocks[index] = packed
+            states[index] = world.getBlock(BlockPos.unpack(packed))
+            index++
+        }
+        world.changedBlocks.clear()
+
+        val entityKeys = LongArray(world.changedBlockEntities.size)
+        val entities = arrayOfNulls<BlockEntity>(entityKeys.size)
+        index = 0
+        for (packed in world.changedBlockEntities) {
+            entityKeys[index] = packed
+            entities[index] = world.getBlockEntity(BlockPos.unpack(packed))
+            index++
+        }
+        world.changedBlockEntities.clear()
+
+        val scope = publishScope
+        if (scope == null) {
+            dispatchPackets(encodeWorldChanges(blocks, states, entityKeys, entities))
+            publishing.set(false)
+            return
+        }
+        scope.launch(Dispatchers.Default) {
+            val packets = encodeWorldChanges(blocks, states, entityKeys, entities)
+            submit {
+                dispatchPackets(packets)
+                publishing.set(false)
+            }
+        }
     }
 
-    private fun flushWorldChanges() {
-        if (world.changedBlocks.isNotEmpty()) {
-            val bySection = HashMap<Long, MutableList<BlockPos>>()
-            for (packed in world.changedBlocks) {
-                val pos = BlockPos.unpack(packed)
+    private fun encodeWorldChanges(
+        blocks: LongArray,
+        states: IntArray,
+        entityKeys: LongArray,
+        entities: Array<BlockEntity?>,
+    ): List<Pair<Long, org.kvxd.kmcprotocol.core.MinecraftPacket>> {
+        val packets = ArrayList<Pair<Long, org.kvxd.kmcprotocol.core.MinecraftPacket>>()
+        if (blocks.isNotEmpty()) {
+            val bySection = HashMap<Long, MutableList<Int>>()
+            for (slot in blocks.indices) {
+                val pos = BlockPos.unpack(blocks[slot])
                 val key = sectionKey(pos.x shr 4, pos.y shr 4, pos.z shr 4)
-                bySection.getOrPut(key) { ArrayList() }.add(pos)
+                bySection.getOrPut(key) { ArrayList() }.add(slot)
             }
-            world.changedBlocks.clear()
-
-            for ((key, positions) in bySection) {
+            for ((key, slots) in bySection) {
                 val chunkX = (key shr 40).toInt()
                 val chunkZ = ((key shl 24) shr 40).toInt()
                 val sectionY = ((key shl 48) shr 48).toInt()
                 val chunkKey = chunkKey(chunkX, chunkZ)
-
-                if (positions.size == 1) {
-                    val pos = positions[0]
-                    val packet = ClientboundBlockChangePacket(
+                if (slots.size == 1) {
+                    val pos = BlockPos.unpack(blocks[slots[0]])
+                    packets += chunkKey to ClientboundBlockChangePacket(
                         Position(pos.x, pos.z, pos.y),
-                        world.getBlock(pos),
+                        states[slots[0]],
                     )
-                    sendToChunk(chunkKey, packet)
                 } else {
-                    val records = positions.map { pos ->
-                        val localX = pos.x and 15
-                        val localZ = pos.z and 15
-                        val localY = pos.y and 15
-                        (world.getBlock(pos) shl 12) or (localX shl 8) or (localZ shl 4) or localY
+                    val records = slots.map { slot ->
+                        val pos = BlockPos.unpack(blocks[slot])
+                        (states[slot] shl 12) or ((pos.x and 15) shl 8) or ((pos.z and 15) shl 4) or (pos.y and 15)
                     }
-                    val packet = ClientboundMultiBlockChangePacket(
+                    packets += chunkKey to ClientboundMultiBlockChangePacket(
                         ClientboundMultiBlockChangePacket.ChunkCoordinates(chunkX, chunkZ, sectionY),
                         records,
                     )
-                    sendToChunk(chunkKey, packet)
                 }
             }
         }
-
-        if (world.changedBlockEntities.isNotEmpty()) {
-            for (packed in world.changedBlockEntities) {
-                val pos = BlockPos.unpack(packed)
-                val entity = world.getBlockEntity(pos)
-                val packet = ClientboundTileEntityDataPacket(
-                    Position(pos.x, pos.z, pos.y),
-                    entity?.let { BlockEntityNbt.typeId(it) } ?: 0,
-                    entity?.let { BlockEntityNbt.toNbt(it) },
-                )
-                sendToChunk(chunkKey(pos.x shr 4, pos.z shr 4), packet)
-            }
-            world.changedBlockEntities.clear()
+        for (slot in entityKeys.indices) {
+            val pos = BlockPos.unpack(entityKeys[slot])
+            val entity = entities[slot]
+            packets += chunkKey(pos.x shr 4, pos.z shr 4) to ClientboundTileEntityDataPacket(
+                Position(pos.x, pos.z, pos.y),
+                entity?.let { BlockEntityNbt.typeId(it) } ?: 0,
+                entity?.let { BlockEntityNbt.toNbt(it) },
+            )
         }
+        return packets
     }
 
     private fun sectionKey(chunkX: Int, sectionY: Int, chunkZ: Int): Long =
@@ -445,6 +483,10 @@ class GogolServer(val config: ServerConfig) {
 
     private fun chunkKey(chunkX: Int, chunkZ: Int): Long =
         (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
+
+    private fun dispatchPackets(packets: List<Pair<Long, org.kvxd.kmcprotocol.core.MinecraftPacket>>) {
+        for ((chunkKey, packet) in packets) sendToChunk(chunkKey, packet)
+    }
 
     private fun sendToChunk(chunkKey: Long, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
         for (player in players) {
@@ -972,6 +1014,7 @@ class GogolServer(val config: ServerConfig) {
         const val SelectionOutlineIntervalMillis = 1_000L
         const val RecompileDelayMillis = 3_000L
         const val PlateReleaseMillis = 1_000L
+        const val PublishIntervalNanos = 50_000_000L
         const val SidebarIntervalMillis = 500L
         const val WaitForChunksReason: Short = 13
         const val BatchTargetNanos = 500_000L

@@ -3,6 +3,7 @@ package org.kvxd.gogolmc.bench
 import org.kvxd.gogolmc.block.BlockStates
 import org.kvxd.gogolmc.block.Blocks
 import org.kvxd.gogolmc.block.property.BlockDirection
+import org.kvxd.gogolmc.block.property.ComparatorMode
 import org.kvxd.gogolmc.block.property.LeverFace
 import org.kvxd.gogolmc.redstone.mchprs.Wire
 import org.kvxd.gogolmc.world.BlockPos
@@ -26,16 +27,25 @@ class BenchCircuit(
         fun busses(lanes: Int, segments: Int, seed: Long = 7L): BenchCircuit {
             val world = GameWorld(WorldGenerator(Blocks.airState, 0))
             val levers = ArrayList<BlockPos>(lanes)
-            val dustPositions = ArrayList<BlockPos>(lanes * segments * 3)
+            val dustPositions = ArrayList<BlockPos>(lanes * segments * 4)
             var repeaters = 0
             var torches = 0
             var comparators = 0
             val random = java.util.Random(seed)
+            val length = segments * 4
+
+            fun dust(pos: BlockPos) {
+                world.setBlockSilent(pos, Wire.make(sideNone(), sideNone(), sideNone(), sideNone(), 0))
+                dustPositions.add(pos)
+            }
 
             for (lane in 0 until lanes) {
                 val z = lane * 3
-                val length = segments * 4
-                for (x in 0..length) world.setBlockSilent(BlockPos(x, 0, z), stone)
+                for (x in 0..length) {
+                    world.setBlockSilent(BlockPos(x, 0, z), stone)
+                    world.setBlockSilent(BlockPos(x, 0, z + 1), stone)
+                    world.setBlockSilent(BlockPos(x, 0, z + 2), stone)
+                }
 
                 val leverPos = BlockPos(0, 1, z)
                 world.setBlockSilent(
@@ -46,23 +56,26 @@ class BenchCircuit(
 
                 var x = 1
                 while (x + 3 <= length) {
-                    for (offset in 0 until 3) {
-                        val pos = BlockPos(x + offset, 1, z)
-                        world.setBlockSilent(pos, Wire.make(sideNone(), sideNone(), sideNone(), sideNone(), 0))
-                        dustPositions.add(pos)
-                    }
+                    val roll = random.nextInt(12)
+                    val dustRun = if (roll in 4..6) 2 else 3
+                    for (offset in 0 until dustRun) dust(BlockPos(x + offset, 1, z))
                     val gate = BlockPos(x + 3, 1, z)
-                    when (random.nextInt(10)) {
-                        0, 1 -> {
+                    when (roll) {
+                        0, 1, 2, 3 -> {
                             world.setBlockSilent(
                                 gate,
                                 BlockStates.comparatorState(
                                     BlockDirection.West,
-                                    org.kvxd.gogolmc.block.property.ComparatorMode.Compare,
+                                    if (random.nextBoolean()) ComparatorMode.Compare else ComparatorMode.Subtract,
                                     false,
                                 ),
                             )
                             comparators++
+                        }
+                        4, 5, 6 -> {
+                            world.setBlockSilent(BlockPos(x + 2, 1, z), stone)
+                            world.setBlockSilent(gate, BlockStates.wallTorchState(true, BlockDirection.East))
+                            torches++
                         }
                         else -> {
                             world.setBlockSilent(
@@ -81,7 +94,24 @@ class BenchCircuit(
                 }
             }
 
-            repeat(2) {
+            var mergeColumn = 3
+            while (mergeColumn + 3 <= length) {
+                var first = 0
+                while (first + 1 < lanes) {
+                    val span = 4 + random.nextInt(4)
+                    if (random.nextInt(100) < 16) {
+                        for (k in 0 until minOf(span, lanes - 1 - first)) {
+                            val z = (first + k) * 3
+                            dust(BlockPos(mergeColumn, 1, z + 1))
+                            dust(BlockPos(mergeColumn, 1, z + 2))
+                        }
+                    }
+                    first += span
+                }
+                mergeColumn += 4
+            }
+
+            repeat(3) {
                 for (pos in dustPositions) {
                     world.setBlockSilent(pos, Wire.getRegulatedSides(world.getBlock(pos), world, pos))
                 }
