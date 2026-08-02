@@ -10,7 +10,10 @@ object Schematics {
 
     fun load(source: CommandSource, rawName: String) {
         val directory = source.server.config.schematicsDirectory
-        val name = if (rawName.endsWith(".schem") || rawName.endsWith(".schematic")) rawName
+        val name = if (
+            rawName.endsWith(".schem", ignoreCase = true) ||
+            rawName.endsWith(".schematic", ignoreCase = true)
+        ) rawName
         else "$rawName.schem"
 
         try {

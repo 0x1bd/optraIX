@@ -8,6 +8,7 @@ import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.argument
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
+import org.kvxd.optraix.command.suggestMatching
 
 class RotateCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
@@ -15,13 +16,14 @@ class RotateCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override val description = "turn the clipboard"
 
-
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         dispatcher.register(
-            literal("/rotate").then(
-                argument("degrees", IntegerArgumentType.integer()).runs { context ->
-                    rotate(context.source, IntegerArgumentType.getInteger(context, "degrees"))
-                }
+            literal(name).then(
+                argument("degrees", IntegerArgumentType.integer())
+                    .suggests { _, builder -> builder.suggestMatching(RotationSuggestions) }
+                    .runs { context ->
+                        rotate(context.source, IntegerArgumentType.getInteger(context, "degrees"))
+                    }
             )
         )
     }
@@ -43,5 +45,9 @@ class RotateCommand(private val worldEdit: WorldEdit) : ServerCommand {
         }
         source.player.clipboard = clipboard.rotate(amount)
         source.success("clipboard rotated $degrees degrees")
+    }
+
+    companion object {
+        private val RotationSuggestions = listOf("90", "180", "270")
     }
 }

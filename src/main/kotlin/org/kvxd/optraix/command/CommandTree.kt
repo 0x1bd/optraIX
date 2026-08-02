@@ -10,10 +10,10 @@ import com.mojang.brigadier.arguments.LongArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
 import com.mojang.brigadier.tree.ArgumentCommandNode
 import com.mojang.brigadier.tree.LiteralCommandNode
-import org.kvxd.optraix.command.argument.BlockStateArgumentType
-import org.kvxd.optraix.command.argument.DirectionArgumentType
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundDeclareCommandsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.CommandNode
+import org.kvxd.optraix.command.argument.BlockStateArgumentType
+import org.kvxd.optraix.command.argument.DirectionArgumentType
 import com.mojang.brigadier.tree.CommandNode as BrigadierNode
 
 object CommandTree {
@@ -45,18 +45,20 @@ object CommandTree {
         return ClientboundDeclareCommandsPacket(nodes, 0)
     }
 
+    private fun hasServerSuggestions(node: BrigadierNode<CommandSource>): Boolean =
+        node is ArgumentCommandNode<*, *> &&
+                (node.customSuggestions != null || node.type is DirectionArgumentType)
+
     private fun flagsFor(node: BrigadierNode<CommandSource>): CommandNode.Flags {
         val type = when (node) {
             is LiteralCommandNode -> TypeLiteral
             is ArgumentCommandNode<*, *> -> TypeArgument
             else -> TypeRoot
         }
-        val hasCustomSuggestions =
-            node is ArgumentCommandNode<*, *> && node.customSuggestions != null
 
         return CommandNode.Flags(
             unused = 0,
-            has_custom_suggestions = if (hasCustomSuggestions) 1 else 0,
+            has_custom_suggestions = if (hasServerSuggestions(node)) 1 else 0,
             has_redirect_node = 0,
             has_command = if (node.command != null) 1 else 0,
             command_node_type = type,
@@ -68,19 +70,17 @@ object CommandTree {
             field_1 = CommandNode.ExtraNodeData1(node.literal),
             field_2 = null,
         )
+
         is ArgumentCommandNode<*, *> -> CommandNode.ExtraNodeData(
             field_1 = null,
             field_2 = CommandNode.ExtraNodeData2(
                 name = node.name,
                 parser = parserFor(node.type),
                 properties = propertiesFor(node.type),
-                suggestionType = if (node.customSuggestions != null) {
-                    "minecraft:ask_server"
-                } else {
-                    null
-                },
+                suggestionType = if (hasServerSuggestions(node)) "minecraft:ask_server" else null,
             ),
         )
+
         else -> CommandNode.ExtraNodeData(null, null)
     }
 
@@ -101,10 +101,13 @@ object CommandTree {
             is StringArgumentType -> when (type.type) {
                 StringArgumentType.StringType.SINGLE_WORD ->
                     CommandNode.ExtraNodeData2.PropertiesBrigadierString.SINGLEWORD
+
                 StringArgumentType.StringType.QUOTABLE_PHRASE ->
                     CommandNode.ExtraNodeData2.PropertiesBrigadierString.QUOTABLEPHRASE
+
                 else -> CommandNode.ExtraNodeData2.PropertiesBrigadierString.GREEDYPHRASE
             }
+
             is DirectionArgumentType -> CommandNode.ExtraNodeData2.PropertiesBrigadierString.SINGLEWORD
             else -> null
         }

@@ -7,6 +7,7 @@ import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.argument
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
+import org.kvxd.optraix.command.suggestMatching
 
 class SpeedCommand : ServerCommand {
 
@@ -16,25 +17,23 @@ class SpeedCommand : ServerCommand {
 
     override val description = "movement speed, 0.1 to 100"
 
-
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
-        val node = dispatcher.register(
-            literal("speed")
-                .runs { show(it.source) }
-                .then(
-                    argument("multiplier", FloatArgumentType.floatArg(0.1f, 100.0f))
-                        .runs { apply(it.source, FloatArgumentType.getFloat(it, "multiplier")) }
-                )
-        )
-        dispatcher.register(
-            literal("s")
-                .runs { show(it.source) }
-                .then(
-                    argument("multiplier", FloatArgumentType.floatArg(0.1f, 100.0f))
-                        .runs { apply(it.source, FloatArgumentType.getFloat(it, "multiplier")) }
-                )
-        )
-        check(node.name == "speed")
+        for (alias in listOf(name) + aliases) {
+            dispatcher.register(
+                literal(alias)
+                    .runs { show(it.source) }
+                    .then(
+                        argument("multiplier", FloatArgumentType.floatArg(0.1f, 100.0f))
+                            .suggests { _, builder -> builder.suggestMatching(SpeedSuggestions) }
+                            .runs {
+                                apply(
+                                    it.source,
+                                    FloatArgumentType.getFloat(it, "multiplier"),
+                                )
+                            }
+                    )
+            )
+        }
     }
 
     private fun show(source: CommandSource) {
@@ -48,4 +47,8 @@ class SpeedCommand : ServerCommand {
     }
 
     private fun format(value: Float) = String.format("%.2f", value)
+
+    companion object {
+        private val SpeedSuggestions = listOf("0.5", "1", "2", "5", "10", "20", "50", "100")
+    }
 }

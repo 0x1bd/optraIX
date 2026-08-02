@@ -10,7 +10,7 @@ class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override val name = "/paste"
 
-    override val description = "paste the clipboard, -a keeps air"
+    override val description = "paste the clipboard; -a includes clipboard air"
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         dispatcher.register(

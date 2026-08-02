@@ -14,8 +14,7 @@ class SchematicCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override val aliases = listOf("/schematic")
 
-    override val description = "list the schematics folder"
-
+    override val description = "list or load files from the schematics folder"
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         for (alias in listOf(name) + aliases) {
@@ -24,12 +23,14 @@ class SchematicCommand(private val worldEdit: WorldEdit) : ServerCommand {
                     .then(literal("list").runs { list(it.source) })
                     .then(
                         literal("load").then(
-                            argument("name", StringArgumentType.greedyString()).runs { context ->
-                                Schematics.load(
-                                    context.source,
-                                    StringArgumentType.getString(context, "name"),
-                                )
-                            }
+                            argument("name", StringArgumentType.greedyString())
+                                .suggests(SchematicSuggestions::suggest)
+                                .runs { context ->
+                                    Schematics.load(
+                                        context.source,
+                                        StringArgumentType.getString(context, "name"),
+                                    )
+                                }
                         )
                     )
             )
@@ -38,10 +39,15 @@ class SchematicCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     private fun list(source: CommandSource) {
         val directory = source.server.config.schematicsDirectory
-        val files = directory.listFiles { file ->
-            file.extension == "schem" || file.extension == "schematic"
-        }
-        if (files == null || files.isEmpty()) source.reply("no schematics in ${directory.path}")
-        else source.reply("schematics: " + files.joinToString { it.name })
+        val names = directory.listFiles()
+            ?.asSequence()
+            ?.filter { it.isFile && SchematicSuggestions.isSchematicName(it.name) }
+            ?.map { it.name }
+            ?.sortedWith(String.CASE_INSENSITIVE_ORDER)
+            ?.toList()
+            .orEmpty()
+
+        if (names.isEmpty()) source.reply("no schematics in ${directory.path}")
+        else source.reply("schematics: " + names.joinToString())
     }
 }
