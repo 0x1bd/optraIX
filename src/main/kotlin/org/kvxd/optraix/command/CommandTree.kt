@@ -51,9 +51,12 @@ object CommandTree {
             is ArgumentCommandNode<*, *> -> TypeArgument
             else -> TypeRoot
         }
+        val hasCustomSuggestions =
+            node is ArgumentCommandNode<*, *> && node.customSuggestions != null
+
         return CommandNode.Flags(
             unused = 0,
-            has_custom_suggestions = 0,
+            has_custom_suggestions = if (hasCustomSuggestions) 1 else 0,
             has_redirect_node = 0,
             has_command = if (node.command != null) 1 else 0,
             command_node_type = type,
@@ -71,7 +74,11 @@ object CommandTree {
                 name = node.name,
                 parser = parserFor(node.type),
                 properties = propertiesFor(node.type),
-                suggestionType = null,
+                suggestionType = if (node.customSuggestions != null) {
+                    "minecraft:ask_server"
+                } else {
+                    null
+                },
             ),
         )
         else -> CommandNode.ExtraNodeData(null, null)
