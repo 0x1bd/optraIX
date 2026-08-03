@@ -13,6 +13,7 @@ import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
+import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.WorldGenerator
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -51,7 +52,7 @@ class OptraIxDiffTest {
                     positions.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),
-                            (sectionIndex shl 4) + (slot shr 8),
+                            WORLD_MIN_Y + (sectionIndex shl 4) + (slot shr 8),
                             chunk.z * 16 + ((slot shr 4) and 15),
                         )
                     )

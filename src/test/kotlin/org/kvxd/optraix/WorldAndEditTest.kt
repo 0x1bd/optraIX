@@ -12,6 +12,8 @@ import org.kvxd.optraix.world.Chunk
 import org.kvxd.optraix.world.ChunkSection
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.SECTION_COUNT
+import org.kvxd.optraix.world.WORLD_HEIGHT
+import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.worldedit.Schematic
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkFormat
@@ -86,6 +88,8 @@ class WorldAndEditTest {
         for (pos in listOf(
             BlockPos(0, 0, 0),
             BlockPos(-1, 255, -1),
+            BlockPos(-1, WORLD_MIN_Y, -1),
+            BlockPos(1, WORLD_MIN_Y + WORLD_HEIGHT - 1, -1),
             BlockPos(-33_554_432, 0, 33_554_431),
             BlockPos(1234, 200, -5678),
         )) {
@@ -99,7 +103,21 @@ class WorldAndEditTest {
         assertEquals(1, Chunk.index(1, 0, 0))
         assertEquals(16, Chunk.index(0, 0, 1))
         assertEquals(256, Chunk.index(0, 1, 0))
-        assertEquals(SECTION_COUNT, 16)
+        assertEquals(SECTION_COUNT, 254)
+    }
+
+    @Test
+    fun worldStoresBlocksAtBothEndsOfItsHeight() {
+        val world = GameWorld()
+        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val bottom = BlockPos(7, WORLD_MIN_Y, -4)
+        val top = BlockPos(7, WORLD_MIN_Y + WORLD_HEIGHT - 1, -4)
+
+        assertTrue(world.setBlock(bottom, stone))
+        assertTrue(world.setBlock(top, stone))
+        assertEquals(stone, world.getBlock(bottom))
+        assertEquals(stone, world.getBlock(top))
+        assertEquals(Blocks.airState, world.getBlock(top.offset(org.kvxd.optraix.block.property.BlockFace.Top)))
     }
 
     @Test
@@ -198,7 +216,7 @@ class WorldAndEditTest {
         for (n in 0 until 400) {
             seed = seed * 1103515245 + 12345
             val x = ((seed ushr 16) and 15)
-            val y = 1 + ((seed ushr 8) and 63)
+            val y = WORLD_MIN_Y + 1 + ((seed ushr 8) and 63)
             val z = (seed and 15)
             val state = 1 + (((seed ushr 20) and 0x3FF) % 900)
             chunk.setBlock(x, y, z, state)
@@ -214,14 +232,18 @@ class WorldAndEditTest {
 
         for ((key, state) in expected) {
             val (x, y, z) = key
-            val decoded = sections[y shr 4].blockStateAt(x, y and 15, z)
+            val decoded = sections[(y - WORLD_MIN_Y) shr 4].blockStateAt(x, y and 15, z)
             assertEquals(state, decoded, "mismatch at $x,$y,$z")
         }
 
         for (x in 0 until 16) {
             for (z in 0 until 16) {
                 if (expected.containsKey(Triple(x, 0, z))) continue
-                assertEquals(sandstone, sections[0].blockStateAt(x, 0, z), "floor lost at $x,0,$z")
+                assertEquals(
+                    sandstone,
+                    sections[-WORLD_MIN_Y shr 4].blockStateAt(x, 0, z),
+                    "floor lost at $x,0,$z",
+                )
             }
         }
     }
@@ -231,17 +253,17 @@ class WorldAndEditTest {
         val world = GameWorld()
         val chunk = world.chunkAt(0, 0)
         for (index in 0 until 600) {
-            val y = 16 + (index shr 8)
+            val y = WORLD_MIN_Y + 16 + (index shr 8)
             chunk.setBlock(index and 15, y, (index shr 4) and 15, index + 1)
         }
         val sections = ChunkSections.decode(
             ChunkPackets.encode(chunk).chunkData, ChunkFormat.v1_18(SECTION_COUNT)
         )
         for (index in 0 until 600) {
-            val y = 16 + (index shr 8)
+            val y = WORLD_MIN_Y + 16 + (index shr 8)
             assertEquals(
                 index + 1,
-                sections[y shr 4].blockStateAt(index and 15, y and 15, (index shr 4) and 15),
+                sections[(y - WORLD_MIN_Y) shr 4].blockStateAt(index and 15, y and 15, (index shr 4) and 15),
             )
         }
     }

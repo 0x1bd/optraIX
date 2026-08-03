@@ -13,6 +13,7 @@ import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WORLD_HEIGHT
+import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.WorldGenerator
 import org.kvxd.optraix.world.WorldStorage
 import java.io.ByteArrayInputStream
@@ -145,7 +146,7 @@ object AnvilImport {
                 if (single == Blocks.airState) continue
                 for (local in 0 until 4096) {
                     val y = (sectionY shl 4) + (local shr 8) + yShift
-                    if (y < 0 || y >= WORLD_HEIGHT) continue
+                    if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) continue
                     val x = chunkX * 16 + (local and 15)
                     val z = chunkZ * 16 + ((local shr 4) and 15)
                     world.setBlockSilent(BlockPos(x, y, z), single)
@@ -170,7 +171,7 @@ object AnvilImport {
                 val state = ids[id]
                 if (state == Blocks.airState) continue
                 val y = (sectionY shl 4) + (local shr 8) + yShift
-                if (y < 0 || y >= WORLD_HEIGHT) continue
+                if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) continue
                 val x = chunkX * 16 + (local and 15)
                 val z = chunkZ * 16 + ((local shr 4) and 15)
                 world.setBlockSilent(BlockPos(x, y, z), state)
@@ -187,7 +188,7 @@ object AnvilImport {
             val x = entity.int("x") ?: continue
             val y = (entity.int("y") ?: continue) + yShift
             val z = entity.int("z") ?: continue
-            if (y < 0 || y >= WORLD_HEIGHT) continue
+            if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) continue
             val loaded = org.kvxd.optraix.world.BlockEntityNbt.fromNbt(id.removePrefix("minecraft:"), entity)
                 ?: continue
             world.setBlockEntity(BlockPos(x, y, z), loaded)
