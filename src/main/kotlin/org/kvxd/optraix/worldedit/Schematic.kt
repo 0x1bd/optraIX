@@ -1,13 +1,14 @@
 package org.kvxd.optraix.worldedit
 
+import java.io.DataInputStream
 import java.io.File
+import net.benwoodworth.knbt.NbtByteArray
 import net.benwoodworth.knbt.NbtCompound
 import net.benwoodworth.knbt.NbtList
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.nbt.NbtIo
 import org.kvxd.optraix.nbt.asIntOrNull
 import org.kvxd.optraix.nbt.asStringOrNull
-import org.kvxd.optraix.nbt.byteArray
 import org.kvxd.optraix.nbt.compound
 import org.kvxd.optraix.nbt.int
 import org.kvxd.optraix.world.BlockEntityNbt
@@ -17,23 +18,65 @@ object Schematic {
 
     fun load(file: File): Clipboard {
         if (!file.isFile) throw SchematicException("no such schematic: ${file.name}")
-        val root = file.inputStream().use { NbtIo.readCompressedOrPlain(it) }
-        val schematic = root.compound("Schematic") ?: root
-        return when {
-            schematic.compound("Blocks") != null -> loadV3(schematic)
-            schematic["Palette"] != null || schematic["BlockData"] != null -> loadV2(schematic)
-            else -> throw SchematicException("unrecognised schematic format in ${file.name}")
+        val root = file.inputStream().use { input ->
+            NbtIo.readCompressedOrPlain(input) { path, size, data ->
+                if (!isBlockData(path)) return@readCompressedOrPlain null
+                data.skipNBytes(size.toLong())
+                NbtByteArray(byteArrayOf())
+            }
         }
+        val schematic = root.compound("Schematic") ?: root
+        val v3 = schematic.compound("Blocks") != null
+        if (!v3 && schematic["Palette"] == null) {
+            throw SchematicException("unrecognised schematic format in ${file.name}")
+        }
+        val (width, height, length) = dimensions(schematic)
+        val volume = checkedVolume(width, height, length)
+        val blocks = if (v3) schematic.compound("Blocks")!! else schematic
+        val palette = blocks.compound("Palette")
+            ?: throw SchematicException(if (v3) "schematic has no Blocks.Palette" else "schematic has no Palette")
+        val lookup = paletteLookup(palette)
+        val builder = SparseClipboardBuilder(minOf(volume, INITIAL_CAPACITY))
+        var decoded = false
+        file.inputStream().use { input ->
+            NbtIo.readCompressedOrPlain(input) { path, size, data ->
+                if (!isBlockData(path)) return@readCompressedOrPlain null
+                if (decoded) throw SchematicException("schematic contains more than one block data array")
+                decode(data, size, volume, lookup, builder)
+                decoded = true
+                NbtByteArray(byteArrayOf())
+            }
+        }
+        if (!decoded) {
+            throw SchematicException(if (v3) "schematic has no Blocks.Data" else "schematic has no BlockData")
+        }
+        val clipboard = Clipboard.sparse(
+            width,
+            height,
+            length,
+            offsetOf(schematic),
+            builder.build(sorted = true),
+        )
+        val blockEntities = blocks["BlockEntities"] as? NbtList<*>
+        loadBlockEntities(clipboard, blockEntities)
+        return clipboard
     }
 
     private fun dimensions(schematic: NbtCompound): Triple<Int, Int, Int> {
         val width = schematic.int("Width") ?: throw SchematicException("schematic has no Width")
         val height = schematic.int("Height") ?: throw SchematicException("schematic has no Height")
         val length = schematic.int("Length") ?: throw SchematicException("schematic has no Length")
+        if (width <= 0 || height <= 0 || length <= 0) throw SchematicException("schematic dimensions must be positive")
         return Triple(width, height, length)
     }
 
-    private fun offsetOf(schematic: NbtCompound, width: Int, height: Int, length: Int): BlockPos {
+    private fun checkedVolume(width: Int, height: Int, length: Int): Int = try {
+        Math.multiplyExact(Math.multiplyExact(width, height), length)
+    } catch (_: ArithmeticException) {
+        throw SchematicException("schematic volume exceeds ${Int.MAX_VALUE} blocks")
+    }
+
+    private fun offsetOf(schematic: NbtCompound): BlockPos {
         val metadata = schematic.compound("Metadata")
         if (metadata != null) {
             val x = metadata.int("WEOffsetX")
@@ -44,72 +87,52 @@ object Schematic {
         return BlockPos(0, 0, 0)
     }
 
-    private fun loadV2(schematic: NbtCompound): Clipboard {
-        val (width, height, length) = dimensions(schematic)
-        val palette = schematic.compound("Palette")
-            ?: throw SchematicException("schematic has no Palette")
-        val data = schematic.byteArray("BlockData")
-            ?: throw SchematicException("schematic has no BlockData")
-        return build(
-            width, height, length,
-            offsetOf(schematic, width, height, length),
-            palette, data,
-            schematic["BlockEntities"] as? NbtList<*>,
-        )
-    }
-
-    private fun loadV3(schematic: NbtCompound): Clipboard {
-        val (width, height, length) = dimensions(schematic)
-        val blocks = schematic.compound("Blocks")
-            ?: throw SchematicException("schematic has no Blocks container")
-        val palette = blocks.compound("Palette")
-            ?: throw SchematicException("schematic has no Blocks.Palette")
-        val data = blocks.byteArray("Data")
-            ?: throw SchematicException("schematic has no Blocks.Data")
-        return build(
-            width, height, length,
-            offsetOf(schematic, width, height, length),
-            palette, data,
-            blocks["BlockEntities"] as? NbtList<*>,
-        )
-    }
-
-    private fun build(
-        width: Int,
-        height: Int,
-        length: Int,
-        offset: BlockPos,
-        palette: NbtCompound,
-        data: ByteArray,
-        blockEntities: NbtList<*>?,
-    ): Clipboard {
+    private fun paletteLookup(palette: NbtCompound): IntArray {
         val maxIndex = palette.values.mapNotNull { it.asIntOrNull() }.maxOrNull() ?: 0
         val lookup = IntArray(maxIndex + 1) { Blocks.airState }
         for ((name, value) in palette) {
             val index = value.asIntOrNull() ?: continue
-            lookup[index] = Blocks.parse(name) ?: Blocks.airState
+            if (index >= 0) lookup[index] = Blocks.parse(name) ?: Blocks.airState
         }
+        return lookup
+    }
 
-        val clipboard = Clipboard(width, height, length, offset, IntArray(width * height * length))
-        var cursor = 0
+    private fun decode(
+        input: DataInputStream,
+        byteCount: Int,
+        volume: Int,
+        lookup: IntArray,
+        builder: SparseClipboardBuilder,
+    ) {
+        val buffer = ByteArray(BUFFER_SIZE)
+        var remaining = byteCount
         var target = 0
-        while (cursor < data.size && target < clipboard.volume) {
-            var value = 0
-            var shift = 0
-            while (true) {
-                val byte = data[cursor++].toInt()
+        var value = 0
+        var shift = 0
+        while (remaining > 0) {
+            val count = minOf(remaining, buffer.size)
+            input.readFully(buffer, 0, count)
+            remaining -= count
+            for (index in 0 until count) {
+                val byte = buffer[index].toInt() and 0xFF
                 value = value or ((byte and 0x7F) shl shift)
-                if (byte and 0x80 == 0) break
-                shift += 7
-                if (shift > 35) throw SchematicException("malformed varint in BlockData")
+                if (byte and 0x80 != 0) {
+                    shift += 7
+                    if (shift > 35) throw SchematicException("malformed varint in block data")
+                    continue
+                }
+                if (target >= volume) throw SchematicException("block data contains more entries than the schematic volume")
+                builder.add(target, lookup.getOrElse(value) { Blocks.airState })
+                target++
+                value = 0
+                shift = 0
             }
-            val y = target / (width * length)
-            val z = (target % (width * length)) / width
-            val x = (target % (width * length)) % width
-            clipboard[x, y, z] = lookup.getOrElse(value) { Blocks.airState }
-            target++
         }
+        if (shift != 0) throw SchematicException("truncated varint in block data")
+        if (target != volume) throw SchematicException("block data contains $target entries for a volume of $volume")
+    }
 
+    private fun loadBlockEntities(clipboard: Clipboard, blockEntities: NbtList<*>?) {
         blockEntities?.forEach { element ->
             val compound = element as? NbtCompound ?: return@forEach
             val pos = compound["Pos"]
@@ -125,7 +148,11 @@ object Schematic {
                 clipboard.blockEntities[clipboard.index(coords[0], coords[1], coords[2])] = it
             }
         }
-
-        return clipboard
     }
+
+    private fun isBlockData(path: String): Boolean =
+        path == "BlockData" || path.endsWith("/BlockData") || path == "Blocks/Data" || path.endsWith("/Blocks/Data")
+
+    private const val BUFFER_SIZE = 1 shl 20
+    private const val INITIAL_CAPACITY = 1 shl 20
 }

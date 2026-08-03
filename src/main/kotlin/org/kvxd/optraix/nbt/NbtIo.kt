@@ -21,7 +21,10 @@ import java.util.zip.GZIPInputStream
 
 object NbtIo {
 
-    fun readCompressedOrPlain(input: InputStream): NbtCompound {
+    fun readCompressedOrPlain(
+        input: InputStream,
+        byteArrayReader: ((String, Int, DataInputStream) -> NbtByteArray?)? = null,
+    ): NbtCompound {
         val pushback = PushbackInputStream(input, 2)
         val first = pushback.read()
         if (first < 0) throw EOFException("empty nbt stream")
@@ -29,18 +32,26 @@ object NbtIo {
         if (second >= 0) pushback.unread(second)
         pushback.unread(first)
         val stream = if (first == 0x1f && second == 0x8b) GZIPInputStream(pushback) else pushback
-        return readNamed(DataInputStream(stream.buffered()))
+        return readNamed(DataInputStream(stream.buffered()), byteArrayReader)
     }
 
-    fun readNamed(input: DataInputStream): NbtCompound {
+    fun readNamed(
+        input: DataInputStream,
+        byteArrayReader: ((String, Int, DataInputStream) -> NbtByteArray?)? = null,
+    ): NbtCompound {
         val type = input.readUnsignedByte()
         if (type == 0) return NbtCompound(emptyMap())
         input.readUTF()
-        val tag = readPayload(input, type)
+        val tag = readPayload(input, type, "", byteArrayReader)
         return tag as? NbtCompound ?: NbtCompound(emptyMap())
     }
 
-    private fun readPayload(input: DataInputStream, type: Int): NbtTag = when (type) {
+    private fun readPayload(
+        input: DataInputStream,
+        type: Int,
+        path: String,
+        byteArrayReader: ((String, Int, DataInputStream) -> NbtByteArray?)?,
+    ): NbtTag = when (type) {
         1 -> NbtByte(input.readByte())
         2 -> NbtShort(input.readShort())
         3 -> NbtInt(input.readInt())
@@ -49,9 +60,12 @@ object NbtIo {
         6 -> NbtDouble(input.readDouble())
         7 -> {
             val size = input.readInt()
-            val bytes = ByteArray(size)
-            input.readFully(bytes)
-            NbtByteArray(bytes)
+            if (size < 0) throw IllegalArgumentException("negative nbt byte array size $size")
+            byteArrayReader?.invoke(path, size, input) ?: run {
+                val bytes = ByteArray(size)
+                input.readFully(bytes)
+                NbtByteArray(bytes)
+            }
         }
         8 -> NbtString(input.readUTF())
         9 -> {
@@ -60,7 +74,7 @@ object NbtIo {
             if (elementType == 0 || size <= 0) {
                 NbtList(emptyList<NbtByte>())
             } else {
-                toList(List(size) { readPayload(input, elementType) }, elementType)
+                toList(List(size) { readPayload(input, elementType, path, byteArrayReader) }, elementType)
             }
         }
         10 -> {
@@ -69,7 +83,8 @@ object NbtIo {
                 val entryType = input.readUnsignedByte()
                 if (entryType == 0) break
                 val name = input.readUTF()
-                values[name] = readPayload(input, entryType)
+                val childPath = if (path.isEmpty()) name else "$path/$name"
+                values[name] = readPayload(input, entryType, childPath, byteArrayReader)
             }
             NbtCompound(values)
         }

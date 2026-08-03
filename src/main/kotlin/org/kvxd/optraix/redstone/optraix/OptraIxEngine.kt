@@ -75,6 +75,10 @@ class OptraIxEngine : RedstoneEngine {
         if (circuit != null && world is GameWorld) decompile(world)
     }
 
+    fun worldEdited(world: GameWorld) {
+        invalidate(world)
+    }
+
     override fun tickWorld(world: GameWorld) {
         val active = circuit
         if (active == null) {

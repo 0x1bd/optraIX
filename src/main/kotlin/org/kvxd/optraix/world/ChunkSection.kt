@@ -19,7 +19,7 @@ class ChunkSection {
     var blockCount: Int = 0
         internal set
 
-    internal var paletteIndex = HashMap<Int, Int>().apply { put(Blocks.airState, 0) }
+    internal var paletteIndex: HashMap<Int, Int>? = null
 
     val isDirect: Boolean
         get() = bitsPerEntry >= DirectBits
@@ -46,7 +46,10 @@ class ChunkSection {
     }
 
     private fun indexFor(state: Int): Int {
-        paletteIndex[state]?.let { return it }
+        paletteIndex?.get(state)?.let { return it }
+        for (index in 0 until paletteSize) {
+            if (palette[index] == state) return index
+        }
         if (bitsPerEntry == 0) {
             grow(4)
             return indexFor(state)
@@ -61,8 +64,12 @@ class ChunkSection {
         }
         if (paletteSize >= palette.size) palette = palette.copyOf(maxOf(4, palette.size * 2))
         palette[paletteSize] = state
-        paletteIndex[state] = paletteSize
-        return paletteSize++
+        val index = paletteSize++
+        if (paletteSize >= IndexedPaletteSize) {
+            val lookup = paletteIndex ?: HashMap<Int, Int>(paletteSize * 2).also { paletteIndex = it }
+            for (entry in 0 until paletteSize) lookup[palette[entry]] = entry
+        }
+        return index
     }
 
     private fun writeRaw(index: Int, raw: Int) {
@@ -74,13 +81,19 @@ class ChunkSection {
     }
 
     private fun grow(newBits: Int) {
+        if (bitsPerEntry == 0) {
+            bitsPerEntry = newBits
+            data = LongArray(longArraySize(newBits))
+            palette = palette.copyOf(maxOf(paletteSize, 1 shl newBits))
+            return
+        }
         val old = IntArray(4096) { get(it) }
         bitsPerEntry = newBits
         data = LongArray(longArraySize(newBits))
         if (newBits >= DirectBits) {
             palette = intArrayOf()
             paletteSize = 0
-            paletteIndex = HashMap()
+            paletteIndex = null
             for (i in 0 until 4096) writeRaw(i, old[i])
         } else {
             val previousPalette = palette
@@ -95,13 +108,14 @@ class ChunkSection {
         bitsPerEntry = 0
         palette = intArrayOf(state)
         paletteSize = 1
-        paletteIndex = HashMap<Int, Int>().apply { put(state, 0) }
+        paletteIndex = null
         data = LongArray(0)
         blockCount = if (state == Blocks.airState) 0 else 4096
     }
 
     companion object {
         const val DirectBits = 15
+        private const val IndexedPaletteSize = 32
 
         fun restore(
             bitsPerEntry: Int,
@@ -115,9 +129,11 @@ class ChunkSection {
             section.paletteSize = paletteSize
             section.data = data
             section.blockCount = blockCount
-            val index = HashMap<Int, Int>(paletteSize * 2)
-            for (entry in 0 until paletteSize) index[palette[entry]] = entry
-            section.paletteIndex = index
+            if (paletteSize >= IndexedPaletteSize) {
+                val index = HashMap<Int, Int>(paletteSize * 2)
+                for (entry in 0 until paletteSize) index[palette[entry]] = entry
+                section.paletteIndex = index
+            }
         }
 
         fun longArraySize(bits: Int): Int {

@@ -38,6 +38,7 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+    maxHeapSize = "2g"
 }
 
 apply(from = "gradle/tools.gradle.kts")

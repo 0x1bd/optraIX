@@ -7,6 +7,7 @@ import org.kvxd.optraix.block.property.BlockFacing
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
+import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Clipboard
 import org.kvxd.optraix.worldedit.Region
@@ -75,6 +76,31 @@ class WorldEdit(private val server: OptraIxServer) {
         }
     }
 
+    fun refresh(positions: LongArray) {
+        refresh(positions, positions.size)
+    }
+
+    private fun refresh(positions: LongArray, size: Int) {
+        if (size == 0) return
+        if (size > MaxRefreshedBlocks) return
+
+        val interaction = server.interaction
+        val engine = server.engine
+        val world = server.world
+
+        for (index in 0 until size) {
+            val packed = positions[index]
+            interaction.changeSurroundingBlocks(world, BlockPos.unpack(packed))
+        }
+        for (index in 0 until size) {
+            val packed = positions[index]
+            val pos = BlockPos.unpack(packed)
+            val state = world.getBlock(pos)
+            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(world, pos)
+            else engine.updateSurroundingBlocks(world, pos)
+        }
+    }
+
     fun resend(min: BlockPos, max: BlockPos) {
         for (chunkX in (min.x shr 4)..(max.x shr 4)) {
             for (chunkZ in (min.z shr 4)..(max.z shr 4)) {
@@ -118,39 +144,50 @@ class WorldEdit(private val server: OptraIxServer) {
             origin.y + clipboard.offset.y,
             origin.z + clipboard.offset.z,
         )
-        val positions = ArrayList<Long>()
-        val previous = ArrayList<Int>()
+        val maximumChanges = if (!includeAir) clipboard.storedBlockCount else clipboard.volume
+        val undo = if (maximumChanges <= MaxUndoBlocks) UndoAccumulator(maximumChanges) else null
+        val changedChunks = HashSet<Long>()
         var changed = 0
-        for (y in 0 until clipboard.sizeY) {
-            for (z in 0 until clipboard.sizeZ) {
-                for (x in 0 until clipboard.sizeX) {
-                    val state = clipboard[x, y, z]
-                    if (!includeAir && state == Blocks.airState) continue
-                    val pos = BlockPos(base.x + x, base.y + y, base.z + z)
-                    val current = server.world.getBlock(pos)
-                    if (current != state) {
-                        positions.add(pos.asLong())
-                        previous.add(current)
-                        server.world.setBlockSilent(pos, state)
-                        changed++
-                    }
-                    clipboard.blockEntities[clipboard.index(x, y, z)]?.let {
-                        server.world.setBlockEntity(pos, it)
+        if (maximumChanges > 0) (server.engine as? OptraIxEngine)?.worldEdited(server.world)
+
+        fun paste(index: Int, state: Int) {
+            val x = index % clipboard.sizeX
+            val z = (index / clipboard.sizeX) % clipboard.sizeZ
+            val y = index / (clipboard.sizeX * clipboard.sizeZ)
+            val pos = BlockPos(base.x + x, base.y + y, base.z + z)
+            val current = server.world.getBlock(pos)
+            if (current == state) return
+            if (!server.world.setBlockSilent(pos, state)) return
+            undo?.add(pos.asLong(), current)
+            changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
+            changed++
+        }
+
+        if (includeAir) {
+            for (y in 0 until clipboard.sizeY) {
+                for (z in 0 until clipboard.sizeZ) {
+                    for (x in 0 until clipboard.sizeX) {
+                        paste(clipboard.index(x, y, z), clipboard[x, y, z])
                     }
                 }
             }
+        } else {
+            clipboard.forEachNonAir(::paste)
         }
+
+        for ((index, entity) in clipboard.blockEntities) {
+            val x = index % clipboard.sizeX
+            val z = (index / clipboard.sizeX) % clipboard.sizeZ
+            val y = index / (clipboard.sizeX * clipboard.sizeZ)
+            server.world.setBlockEntity(BlockPos(base.x + x, base.y + y, base.z + z), entity)
+        }
+
         if (changed > 0) {
-            player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-            refresh(positions)
-            resend(
-                base,
-                BlockPos(
-                    base.x + clipboard.sizeX - 1,
-                    base.y + clipboard.sizeY - 1,
-                    base.z + clipboard.sizeZ - 1,
-                ),
-            )
+            undo?.build()?.let { entry ->
+                player.pushUndo(entry)
+                refresh(entry.positions, entry.size)
+            }
+            resendChunks(changedChunks)
         }
         return changed
     }
@@ -223,30 +260,28 @@ class WorldEdit(private val server: OptraIxServer) {
     fun undo(player: Player): Int? {
         val entry = player.undoStack.poll() ?: return null
         player.redoStack.push(swap(entry))
-        return entry.positions.size
+        return entry.size
     }
 
     fun redo(player: Player): Int? {
         val entry = player.redoStack.poll() ?: return null
         player.undoStack.push(swap(entry))
-        return entry.positions.size
+        return entry.size
     }
 
     private fun swap(entry: UndoEntry): UndoEntry {
         val replaced = IntArray(entry.positions.size)
-        if (entry.positions.isEmpty()) return UndoEntry(entry.positions, replaced)
-        var min = BlockPos.unpack(entry.positions[0])
-        var max = min
-        for (index in entry.positions.indices) {
+        if (entry.size == 0) return UndoEntry(entry.positions, replaced, 0)
+        val changedChunks = HashSet<Long>()
+        for (index in 0 until entry.size) {
             val pos = BlockPos.unpack(entry.positions[index])
             replaced[index] = server.world.getBlock(pos)
             server.world.setBlockSilent(pos, entry.states[index])
-            min = min.min(pos)
-            max = max.max(pos)
+            changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
         }
-        refresh(entry.positions.toList())
-        resend(min, max)
-        return UndoEntry(entry.positions, replaced)
+        refresh(entry.positions, entry.size)
+        resendChunks(changedChunks)
+        return UndoEntry(entry.positions, replaced, entry.size)
     }
 
     private fun resendSpan(region: Region, shift: BlockPos) {
@@ -275,6 +310,18 @@ class WorldEdit(private val server: OptraIxServer) {
 
     private companion object {
         const val MaxRefreshedBlocks = 250_000
+        const val MaxUndoBlocks = 1_000_000
+
+        fun chunkKey(x: Int, z: Int): Long = (x.toLong() shl 32) or (z.toLong() and 0xFFFFFFFFL)
+    }
+
+    private fun resendChunks(chunks: Collection<Long>) {
+        for (key in chunks) {
+            val targets = server.players.filter { key in it.loadedChunks }
+            if (targets.isEmpty()) continue
+            val packet = ChunkPackets.encode(server.world.chunkAt((key shr 32).toInt(), key.toInt()))
+            for (target in targets) target.connection.send(packet)
+        }
     }
 
     fun regionOffset(facing: BlockFacing, region: Region): BlockPos = when (facing) {
@@ -285,4 +332,24 @@ class WorldEdit(private val server: OptraIxServer) {
         BlockFacing.Up -> BlockPos(0, region.sizeY, 0)
         BlockFacing.Down -> BlockPos(0, -region.sizeY, 0)
     }
+}
+
+private class UndoAccumulator(initialCapacity: Int) {
+    private var positions = LongArray(initialCapacity.coerceAtLeast(1))
+    private var states = IntArray(initialCapacity.coerceAtLeast(1))
+    var size: Int = 0
+        private set
+
+    fun add(position: Long, state: Int) {
+        if (size == positions.size) {
+            val capacity = if (size < 1 shl 20) size * 2 else size + (size shr 1)
+            positions = positions.copyOf(capacity)
+            states = states.copyOf(capacity)
+        }
+        positions[size] = position
+        states[size] = state
+        size++
+    }
+
+    fun build(): UndoEntry = UndoEntry(positions, states, size)
 }
