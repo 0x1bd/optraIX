@@ -7,14 +7,17 @@ import java.util.zip.GZIPOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.block.property.RotateAmount
 import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
+import org.kvxd.optraix.redstone.optraix.CompileMemoryPreflight
+import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Schematic
-import org.kvxd.optraix.block.property.RotateAmount
 
 class SchematicStreamingTest {
 
@@ -63,12 +66,17 @@ class SchematicStreamingTest {
 
         val directory = File("build/tmp/sm83-streaming-test")
         val server = OptraIxServer(ServerConfig(port = 0, runDirectory = directory))
+        val engine = OptraIxEngine()
+        server.useEngine(engine)
         val player = Player(1, UUID.randomUUID(), "Tester", RecordingSink())
         player.y = 100.0
         val changed = WorldEdit(server).paste(player, clipboard, includeAir = false)
 
         assertEquals(14_646_595, changed)
         assertTrue(player.undoStack.isEmpty())
+        assertTrue(engine.manualCompileRequired)
+        assertTrue(!engine.compiled)
+        assertNotNull(CompileMemoryPreflight.evaluate(server.world).failure)
     }
 
     private fun writeSparseSchematic(file: File, width: Int) {

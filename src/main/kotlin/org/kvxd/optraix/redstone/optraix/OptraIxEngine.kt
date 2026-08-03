@@ -31,6 +31,9 @@ class OptraIxEngine : RedstoneEngine {
     var paused: Boolean = false
         private set
 
+    var manualCompileRequired: Boolean = false
+        private set
+
     fun pause(world: GameWorld) {
         decompile(world)
         paused = true
@@ -43,6 +46,12 @@ class OptraIxEngine : RedstoneEngine {
     fun compile(world: GameWorld): Boolean {
         paused = false
         decompile(world)
+        val memoryFailure = CompileMemoryPreflight.evaluate(world).failure
+        if (memoryFailure != null) {
+            lastError = memoryFailure
+            circuit = null
+            return false
+        }
         val started = System.nanoTime()
         return try {
             val built = OptraIxCompiler.compile(world)
@@ -52,6 +61,7 @@ class OptraIxEngine : RedstoneEngine {
             circuit = built
             compileMillis = (System.nanoTime() - started) / 1_000_000
             lastError = null
+            manualCompileRequired = false
             true
         } catch (cause: OptraIxCompileException) {
             lastError = cause.message
@@ -75,7 +85,8 @@ class OptraIxEngine : RedstoneEngine {
         if (circuit != null && world is GameWorld) decompile(world)
     }
 
-    fun worldEdited(world: GameWorld) {
+    fun worldEdited(world: GameWorld, requireManualCompile: Boolean = false) {
+        if (requireManualCompile) manualCompileRequired = true
         invalidate(world)
     }
 

@@ -148,7 +148,12 @@ class WorldEdit(private val server: OptraIxServer) {
         val undo = if (maximumChanges <= MaxUndoBlocks) UndoAccumulator(maximumChanges) else null
         val changedChunks = HashSet<Long>()
         var changed = 0
-        if (maximumChanges > 0) (server.engine as? OptraIxEngine)?.worldEdited(server.world)
+        if (maximumChanges > 0) {
+            (server.engine as? OptraIxEngine)?.worldEdited(
+                server.world,
+                requireManualCompile = maximumChanges > MaxAutomaticCompileBlocks,
+            )
+        }
 
         fun paste(index: Int, state: Int) {
             val x = index % clipboard.sizeX
@@ -311,6 +316,7 @@ class WorldEdit(private val server: OptraIxServer) {
     private companion object {
         const val MaxRefreshedBlocks = 250_000
         const val MaxUndoBlocks = 1_000_000
+        const val MaxAutomaticCompileBlocks = 250_000
 
         fun chunkKey(x: Int, z: Int): Long = (x.toLong() shl 32) or (z.toLong() and 0xFFFFFFFFL)
     }

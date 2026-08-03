@@ -77,6 +77,10 @@ class OptraIxCommand : ServerCommand {
                 return@submit
             }
             engine.resume()
+            if (engine.manualCompileRequired) {
+                source.reply("bulk edits require an explicit /optraix compile")
+                return@submit
+            }
             server.compileRedstone(engine)
             if (engine.compiled) {
                 source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
@@ -97,7 +101,12 @@ class OptraIxCommand : ServerCommand {
         }
         val circuit = engine.circuit
         if (circuit == null) {
-            source.reply(if (engine.paused) "  state:    paused" else "  state:    not compiled")
+            val state = when {
+                engine.paused -> "paused"
+                engine.manualCompileRequired -> "manual compile required"
+                else -> "not compiled"
+            }
+            source.reply("  state:    $state")
             engine.lastError?.let { source.reply("  error:    $it") }
             return
         }

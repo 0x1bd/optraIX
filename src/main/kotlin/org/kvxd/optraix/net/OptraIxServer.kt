@@ -202,6 +202,7 @@ class OptraIxServer(val config: ServerConfig) {
 
     fun compileRedstone(target: OptraIxEngine) {
         if (target.paused) return
+        if (target.manualCompileRequired) return
         compiling = true
         refreshSidebar(force = true)
         val ok = target.compile(world)
@@ -244,6 +245,7 @@ class OptraIxServer(val config: ServerConfig) {
     private fun maintainRedstoneCompile() {
         val optraix = engine as? OptraIxEngine ?: return
         if (optraix.paused) return
+        if (optraix.manualCompileRequired) return
         val counter = optraix.changeCounter
         val now = System.currentTimeMillis()
         if (counter != lastEditCounter) {

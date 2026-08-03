@@ -7,6 +7,7 @@ import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
+import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Region
@@ -17,6 +18,33 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class WorldEditTest {
+
+    @Test
+    fun bulkPasteRequiresExplicitOptraIxCompilation() {
+        val server = server()
+        val engine = OptraIxEngine()
+        server.useEngine(engine)
+        val player = player(server)
+        player.y = 10.0
+        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val blocks = IntArray(250_001) { stone }
+        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+            250_001,
+            1,
+            1,
+            BlockPos(0, 0, 0),
+            blocks,
+        )
+
+        assertEquals(250_001, WorldEdit(server).paste(player, clipboard, includeAir = false))
+        assertTrue(engine.manualCompileRequired)
+        assertTrue(!engine.compiled)
+        server.compileRedstone(engine)
+        assertTrue(!engine.compiled)
+        assertTrue(engine.compile(server.world))
+        assertTrue(engine.compiled)
+        assertTrue(!engine.manualCompileRequired)
+    }
 
     private fun server(): OptraIxServer =
         OptraIxServer(ServerConfig(port = 0, runDirectory = File("build/tmp/worldedit-test")))

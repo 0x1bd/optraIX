@@ -5,6 +5,7 @@ import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
+import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 
 class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
@@ -28,5 +29,9 @@ class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
         }
         val changed = worldEdit.paste(source.player, clipboard, includeAir)
         source.success("pasted $changed blocks")
+        val engine = source.server.engine as? OptraIxEngine
+        if (engine?.manualCompileRequired == true) {
+            source.reply("automatic compilation skipped for this bulk paste; run /optraix compile when ready")
+        }
     }
 }
