@@ -8,7 +8,7 @@ object SelectionOutline {
 
     private const val HappyVillagerParticleId = 38
     private const val MaxPointsPerEdge = 48
-    private const val Spacing = 0.5
+    private const val Spacing = 0.1
 
     fun draw(player: Player) {
         val one = player.selectionOne ?: return
