@@ -387,17 +387,49 @@ class OptraIxServer(val config: ServerConfig) {
     private var lastPublish = 0L
     private val publishing = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    private fun publishWorldChanges() {
-        if (world.changedBlocks.isEmpty() && world.changedBlockEntities.isEmpty()) return
+    private var pendingAcks = 0
+
+    private fun queueBlockAck(player: Player, sequence: Int) {
+        if (player.pendingBlockAck < 0) pendingAcks++
+        if (sequence > player.pendingBlockAck) player.pendingBlockAck = sequence
+    }
+
+    private fun takeBlockAcks(): List<Pair<Player, Int>> {
+        pendingAcks = 0
+        var acks: MutableList<Pair<Player, Int>>? = null
+        for (index in players.indices) {
+            val player = players[index]
+            val sequence = player.pendingBlockAck
+            if (sequence < 0) continue
+            player.pendingBlockAck = -1
+            val list = acks ?: ArrayList<Pair<Player, Int>>(2).also { acks = it }
+            list += player to sequence
+        }
+        return acks ?: emptyList()
+    }
+
+    private fun sendBlockAcks(acks: List<Pair<Player, Int>>) {
+        for ((player, sequence) in acks) {
+            player.connection.send(ClientboundAcknowledgePlayerDiggingPacket(sequence))
+        }
+    }
+
+    internal fun publishWorldChanges() {
+        if (world.changedBlocks.isEmpty() && world.changedBlockEntities.isEmpty()) {
+            if (pendingAcks > 0) sendBlockAcks(takeBlockAcks())
+            return
+        }
         if (players.isEmpty()) {
+            pendingAcks = 0
             world.changedBlocks.clear()
             world.changedBlockEntities.clear()
             return
         }
         val now = System.nanoTime()
-        if (now - lastPublish < PublishIntervalNanos) return
+        if (pendingAcks == 0 && now - lastPublish < PublishIntervalNanos) return
         if (!publishing.compareAndSet(false, true)) return
         lastPublish = now
+        val acks = takeBlockAcks()
 
         val blocks = LongArray(world.changedBlocks.size)
         val states = IntArray(blocks.size)
@@ -422,6 +454,7 @@ class OptraIxServer(val config: ServerConfig) {
         val scope = publishScope
         if (scope == null) {
             dispatchPackets(encodeWorldChanges(blocks, states, entityKeys, entities))
+            sendBlockAcks(acks)
             publishing.set(false)
             return
         }
@@ -429,6 +462,7 @@ class OptraIxServer(val config: ServerConfig) {
             val packets = encodeWorldChanges(blocks, states, entityKeys, entities)
             submit {
                 dispatchPackets(packets)
+                sendBlockAcks(acks)
                 publishing.set(false)
             }
         }
@@ -946,7 +980,7 @@ class OptraIxServer(val config: ServerConfig) {
             dropHeld(player, wholeStack = packet.status == 4)
             return
         }
-        player.connection.send(ClientboundAcknowledgePlayerDiggingPacket(packet.sequence))
+        queueBlockAck(player, packet.sequence)
         when (packet.status) {
             0 -> {
                 val held = player.heldItem
@@ -966,7 +1000,7 @@ class OptraIxServer(val config: ServerConfig) {
     private fun handlePlace(player: Player, packet: ServerboundBlockPlacePacket) {
         if (packet.hand != 0) return
         val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
-        player.connection.send(ClientboundAcknowledgePlayerDiggingPacket(packet.sequence))
+        queueBlockAck(player, packet.sequence)
         val held = player.heldItem
 
         if (held != null && held.item.name == "minecraft:wooden_axe") {

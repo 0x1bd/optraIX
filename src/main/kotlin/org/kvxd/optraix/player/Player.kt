@@ -32,6 +32,8 @@ class Player(
     var lastKeepAlive: Long = 0
     var latency: Int = 0
 
+    var pendingBlockAck: Int = -1
+
     var moved: Boolean = false
     var lastChunkX: Int = Int.MIN_VALUE
     var lastChunkZ: Int = Int.MIN_VALUE
