@@ -4,6 +4,8 @@ import com.sun.management.OperatingSystemMXBean
 import java.lang.management.ManagementFactory
 import java.nio.file.Files
 import java.nio.file.Path
+import org.kvxd.optraix.block.BlockKind
+import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.world.GameWorld
 
 internal data class CompileMemoryPlan(
@@ -27,36 +29,43 @@ internal data class CompileMemoryPlan(
 
     private companion object {
         const val Mib = 1024L * 1024L
-        const val SystemReserveBytes = 4L * 1024L * Mib
+        const val SystemReserveBytes = 1024L * Mib
     }
 }
 
 internal object CompileMemoryPreflight {
     fun evaluate(world: GameWorld): CompileMemoryPlan {
-        var blocks = 0L
-        var sections = 0L
+        var components = 0L
+        var wires = 0L
         for (chunk in world.snapshotChunks()) {
             for (section in chunk.sections) {
                 if (section == null || section.blockCount == 0) continue
-                blocks += section.blockCount
-                sections++
+                if (!sectionHasCandidates(section)) continue
+                section.forEachState { _, state ->
+                    if (isComponentCandidate(state)) {
+                        if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) wires++ else components++
+                    }
+                }
             }
         }
         val runtime = Runtime.getRuntime()
         val usedHeap = runtime.totalMemory() - runtime.freeMemory()
         val heapAvailable = (runtime.maxMemory() - usedHeap).coerceAtLeast(0)
-        return evaluate(blocks, sections, heapAvailable, physicalAvailableBytes())
+        return evaluate(components, wires, heapAvailable, physicalAvailableBytes())
     }
 
     fun evaluate(
-        blocks: Long,
-        sections: Long,
+        components: Long,
+        wires: Long,
         heapAvailableBytes: Long,
         systemAvailableBytes: Long,
     ): CompileMemoryPlan {
         val required = saturatedAdd(
             BaseBytes,
-            saturatedAdd(saturatedMultiply(blocks, BytesPerBlock), saturatedMultiply(sections, BytesPerSection)),
+            saturatedAdd(
+                saturatedMultiply(components, BytesPerComponent),
+                saturatedMultiply(wires, BytesPerWire),
+            ),
         )
         return CompileMemoryPlan(required, heapAvailableBytes.coerceAtLeast(0), systemAvailableBytes)
     }
@@ -83,7 +92,7 @@ internal object CompileMemoryPreflight {
         return operatingSystem?.freeMemorySize ?: -1
     }
 
-    private const val BaseBytes = 256L * 1024L * 1024L
-    private const val BytesPerBlock = 256L
-    private const val BytesPerSection = 4096L
+    private const val BaseBytes = 128L * 1024L * 1024L
+    private const val BytesPerComponent = 640L
+    private const val BytesPerWire = 48L
 }

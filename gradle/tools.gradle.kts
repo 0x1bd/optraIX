@@ -47,6 +47,36 @@ tool(
 }
 
 tool(
+    "compileprofile",
+    "org.kvxd.optraix.tools.CompileProfile",
+    "measure compile memory footprint on a saved world",
+    taskGroup = "tools",
+    argsProperty = "profileArgs",
+) {
+    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "12g"}")
+}
+
+tool(
+    "compileminheap",
+    "org.kvxd.optraix.tools.CompileMinHeap",
+    "compile a saved world under a fixed heap ceiling",
+    taskGroup = "tools",
+    argsProperty = "profileArgs",
+) {
+    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "12g"}")
+}
+
+tool(
+    "compiledigest",
+    "org.kvxd.optraix.tools.CompileDigest",
+    "hash the compiled circuit of a saved world",
+    taskGroup = "tools",
+    argsProperty = "profileArgs",
+) {
+    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "12g"}")
+}
+
+tool(
     "importworld",
     "org.kvxd.optraix.tools.AnvilImport",
     "convert a vanilla anvil world into a optraix world file",

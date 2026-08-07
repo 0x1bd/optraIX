@@ -17,13 +17,11 @@ class GraphNode(
     var frontDiode: Boolean = false
     var adjacentOverride: Int = -1
     var farOverride: Int = -1
-    var note: Int = 0
-    var instrument: Int = 0
     var onStrength: Int = 0
     var chainLinks: List<GraphNode>? = null
 
-    val inputs = ArrayList<GraphEdge>()
-    val outputs = ArrayList<GraphEdge>()
+    val inputs = ArrayList<GraphEdge>(0)
+    val outputs = ArrayList<GraphEdge>(0)
 }
 
 class GraphEdge(
@@ -36,28 +34,30 @@ class GraphEdge(
 class OptraIxGraph {
 
     val nodes = ArrayList<GraphNode>()
-    private val byPos = HashMap<Long, Int>()
+    private val byPos = LongIntMap()
 
     fun add(pos: BlockPos, type: Int, state: Int): GraphNode {
         val node = GraphNode(nodes.size, pos, type, state)
         nodes += node
-        byPos[pos.asLong()] = node.id
+        byPos.put(pos.asLong(), node.id)
         return node
     }
 
-    fun idAt(pos: BlockPos): Int = byPos[pos.asLong()] ?: -1
+    fun idAt(pos: BlockPos): Int = byPos[pos.asLong()]
 
-    fun nodeAt(pos: BlockPos): GraphNode? = byPos[pos.asLong()]?.let { nodes[it] }
+    fun nodeAt(pos: BlockPos): GraphNode? = byPos[pos.asLong()].takeIf { it >= 0 }?.let { nodes[it] }
 
     fun link(source: Int, target: Int, weight: Int, side: Boolean) {
         if (source < 0 || target < 0 || source == target) return
-        val existing = nodes[target].inputs.firstOrNull { it.source == source && it.side == side }
-        if (existing != null) {
+        val inputs = nodes[target].inputs
+        for (index in inputs.indices) {
+            val existing = inputs[index]
+            if (existing.source != source || existing.side != side) continue
             if (weight < existing.weight) existing.weight = weight
             return
         }
         val edge = GraphEdge(source, target, weight, side)
-        nodes[target].inputs += edge
+        inputs += edge
         nodes[source].outputs += edge
     }
 

@@ -7,7 +7,6 @@ import java.util.zip.GZIPOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.RotateAmount
@@ -76,7 +75,10 @@ class SchematicStreamingTest {
         assertTrue(player.undoStack.isEmpty())
         assertTrue(engine.manualCompileRequired)
         assertTrue(!engine.compiled)
-        assertNotNull(CompileMemoryPreflight.evaluate(server.world).failure)
+        assertTrue(
+            CompileMemoryPreflight.evaluate(server.world).requiredBytes < 2L * 1024 * 1024 * 1024,
+            "compiling the sm83 core should not need gigabytes of scratch memory",
+        )
     }
 
     private fun writeSparseSchematic(file: File, width: Int) {

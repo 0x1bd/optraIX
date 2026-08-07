@@ -13,8 +13,8 @@ class CompileMemoryPreflightTest {
     @Test
     fun rejectsCompilationWhenHeapIsInsufficient() {
         val plan = CompileMemoryPreflight.evaluate(
-            blocks = 14_646_595,
-            sections = 300_000,
+            components = 4_000_000,
+            wires = 10_646_595,
             heapAvailableBytes = 512L * 1024 * 1024,
             systemAvailableBytes = 16L * 1024 * 1024 * 1024,
         )
@@ -25,8 +25,8 @@ class CompileMemoryPreflightTest {
     @Test
     fun acceptsCompilationWhenBothBudgetsAreSufficient() {
         val plan = CompileMemoryPreflight.evaluate(
-            blocks = 100_000,
-            sections = 10_000,
+            components = 100_000,
+            wires = 1_000_000,
             heapAvailableBytes = 2L * 1024 * 1024 * 1024,
             systemAvailableBytes = 8L * 1024 * 1024 * 1024,
         )

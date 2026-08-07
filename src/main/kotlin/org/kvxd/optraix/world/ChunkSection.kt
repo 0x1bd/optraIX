@@ -34,6 +34,34 @@ class ChunkSection {
         return if (isDirect) raw else palette[raw]
     }
 
+    inline fun forEachState(action: (slot: Int, state: Int) -> Unit) {
+        if (bitsPerEntry == 0) {
+            val state = palette[0]
+            for (slot in 0 until 4096) action(slot, state)
+            return
+        }
+        val bits = bitsPerEntry
+        val valuesPerLong = 64 / bits
+        val mask = (1L shl bits) - 1L
+        val direct = isDirect
+        val words = data
+        val entries = palette
+        var slot = 0
+        var cell = 0
+        while (slot < 4096) {
+            var word = words[cell]
+            var offset = 0
+            while (offset < valuesPerLong && slot < 4096) {
+                val raw = (word and mask).toInt()
+                action(slot, if (direct) raw else entries[raw])
+                word = word ushr bits
+                offset++
+                slot++
+            }
+            cell++
+        }
+    }
+
     fun set(index: Int, state: Int): Boolean {
         val previous = get(index)
         if (previous == state) return false
