@@ -175,11 +175,6 @@ class OptraIxServer(val config: ServerConfig) {
         }
     }
 
-    fun stop() {
-        running = false
-        runCatching { socket?.close() }
-    }
-
     fun shutdown(): Int {
         running = false
         runCatching { tickThread?.join(2_000) }
