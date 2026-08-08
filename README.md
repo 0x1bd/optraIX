@@ -34,6 +34,16 @@ Pass them through Gradle with `--args`, for example:
 ./gradlew run --args="--port 25566 --view-distance 8"
 ```
 
+### Native image
+
+With GraalVM 25 and `native-image` installed:
+
+```bash
+./gradlew nativeCompile
+```
+
+The executable is written to `build/native/nativeCompile/optraix`. It accepts the same command line options as the JVM build.
+
 ## Redstone
 
 optraIX is fully MCHPRS-conformant. It does NOT simulate vanilla quirks such as:

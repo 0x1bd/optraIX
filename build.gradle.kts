@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kmcprotocol)
+    alias(libs.plugins.graalvm.native)
     application
 }
 
@@ -34,6 +35,21 @@ kotlin {
 
 application {
     mainClass.set("org.kvxd.optraix.MainKt")
+    applicationName = "optraix"
+}
+
+graalvmNative {
+    binaries {
+        named("main") {
+            imageName.set("optraix")
+            mainClass.set("org.kvxd.optraix.MainKt")
+            buildArgs.add("-O2")
+            buildArgs.add("-march=compatibility")
+        }
+    }
+    metadataRepository {
+        enabled.set(true)
+    }
 }
 
 tasks.test {
