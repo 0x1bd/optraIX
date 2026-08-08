@@ -18,6 +18,7 @@ import org.kvxd.optraix.block.Items
 import org.kvxd.optraix.command.CommandRegistry
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.interaction.UseOnBlockContext
+import org.kvxd.optraix.nbt.compoundOf
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.player.PlayerProfileStore
 import org.kvxd.optraix.redstone.RedstoneEngine
@@ -78,6 +79,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.Serverbou
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundLookPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPositionLookPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPickItemPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundSetCreativeSlotPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundUpdateSignPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.GameProfile
@@ -201,7 +203,7 @@ class OptraIxServer(val config: ServerConfig) {
             if (restored > 0) println("restored $restored player profiles")
         }.onFailure { Log.error("players", "could not load ${config.playerFile.path}", it) }
 
-        val viaVersion = if (config.viaversion) ViaVersionRuntime.start() else null
+        val viaVersion = if (config.viaversion) ViaVersionRuntime.start(this) else null
         viaVersionRuntime = viaVersion
         val middlewares = viaVersion?.let { listOf(it.middleware) }.orEmpty()
         val server = Server.bind(
@@ -1139,6 +1141,7 @@ class OptraIxServer(val config: ServerConfig) {
             }
             is ServerboundFlyingPacket -> player.onGround = packet.onGround
             is ServerboundHeldItemSlotPacket -> player.selectedSlot = packet.slotId.toInt().coerceIn(0, 8)
+            is ServerboundPickItemPacket -> pickInventorySlot(player, packet.slot)
             is ServerboundSetCreativeSlotPacket -> {
                 val slot = packet.slot.toInt()
                 if (slot in player.inventory.indices) {
@@ -1206,6 +1209,96 @@ class OptraIxServer(val config: ServerConfig) {
         if (!slot.present || itemId == null) return null
         return ItemStack(Items.byProtocolId(itemId), slot.itemCount?.toInt() ?: 1, slot.nbtData)
     }
+
+    fun pickItemFromBlock(playerUuid: UUID, pos: BlockPos, includeData: Boolean) {
+        val player = players.firstOrNull { it.uuid == playerUuid } ?: return
+        val dx = pos.x + 0.5 - player.x
+        val dy = pos.y + 0.5 - player.y
+        val dz = pos.z + 0.5 - player.z
+        if (dx * dx + dy * dy + dz * dz > PickBlockRangeSquared) return
+
+        val world = worldFor(player)
+        val blockName = Blocks.nameOf(world.getBlock(pos))
+        val itemName = when {
+            blockName == "minecraft:redstone_wire" -> "minecraft:redstone"
+            blockName == "minecraft:redstone_wall_torch" -> "minecraft:redstone_torch"
+            blockName.endsWith("_wall_sign") -> blockName.removeSuffix("_wall_sign") + "_sign"
+            blockName == "minecraft:water_cauldron" -> "minecraft:cauldron"
+            blockName == "minecraft:lava_cauldron" -> "minecraft:cauldron"
+            blockName == "minecraft:powder_snow_cauldron" -> "minecraft:cauldron"
+            else -> blockName
+        }
+        val item = Items.byName(itemName) ?: return
+        val nbt = if (includeData) {
+            world.getBlockEntity(pos)?.let { compoundOf("BlockEntityTag" to BlockEntityNbt.toNbt(it)) }
+        } else {
+            null
+        }
+        pickItem(player, ItemStack(item, 1, nbt))
+    }
+
+    private fun pickInventorySlot(player: Player, sourceInventorySlot: Int) {
+        val sourceSlot = when (sourceInventorySlot) {
+            in 0..8 -> 36 + sourceInventorySlot
+            in 9..35 -> sourceInventorySlot
+            else -> return
+        }
+        if (sourceSlot in 36..44) {
+            player.selectedSlot = sourceSlot - 36
+            player.connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
+            return
+        }
+
+        val targetSlot = (36..44).firstOrNull { player.inventory[it] == null } ?: (36 + player.selectedSlot)
+        val displaced = player.inventory[targetSlot]
+        player.inventory[targetSlot] = player.inventory[sourceSlot]
+        player.inventory[sourceSlot] = displaced
+        player.selectedSlot = targetSlot - 36
+        sendInventory(player)
+        player.connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
+    }
+
+    private fun pickItem(player: Player, wanted: ItemStack) {
+        val sourceSlot = findMatchingStorageSlot(player, wanted)
+        if (sourceSlot in 36..44) {
+            player.selectedSlot = sourceSlot - 36
+            player.connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
+            return
+        }
+
+        val targetSlot = (36..44).firstOrNull { player.inventory[it] == null } ?: (36 + player.selectedSlot)
+        if (sourceSlot >= 0) {
+            val displaced = player.inventory[targetSlot]
+            player.inventory[targetSlot] = player.inventory[sourceSlot]
+            player.inventory[sourceSlot] = displaced
+        } else {
+            val displaced = player.inventory[targetSlot]
+            if (displaced != null) {
+                val emptySlot = (9..35).firstOrNull { player.inventory[it] == null }
+                if (emptySlot != null) player.inventory[emptySlot] = displaced
+            }
+            player.inventory[targetSlot] = wanted
+        }
+
+        player.selectedSlot = targetSlot - 36
+        sendInventory(player)
+        player.connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
+    }
+
+    private fun findMatchingStorageSlot(player: Player, wanted: ItemStack): Int {
+        for (slot in 36..44) {
+            val existing = player.inventory[slot] ?: continue
+            if (samePickedItem(existing, wanted)) return slot
+        }
+        for (slot in 9..35) {
+            val existing = player.inventory[slot] ?: continue
+            if (samePickedItem(existing, wanted)) return slot
+        }
+        return -1
+    }
+
+    private fun samePickedItem(first: ItemStack, second: ItemStack): Boolean =
+        first.item.protocolId == second.item.protocolId && first.nbt == second.nbt
 
     private fun dropHeld(player: Player, wholeStack: Boolean) {
         val index = 36 + player.selectedSlot
@@ -1309,6 +1402,7 @@ class OptraIxServer(val config: ServerConfig) {
         const val PublishIntervalNanos = 50_000_000L
         const val SidebarIntervalMillis = 500L
         const val WaitForChunksReason: Short = 13
+        const val PickBlockRangeSquared = 30.25
         const val BatchTargetNanos = 500_000L
         const val MaxBatch = 65_536
         const val ShutdownJoinMillis = 5_000L

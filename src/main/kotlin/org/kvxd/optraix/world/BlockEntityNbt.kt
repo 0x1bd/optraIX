@@ -23,7 +23,7 @@ object BlockEntityNbt {
     fun fromItemTag(nbt: NbtTag, blockName: String): BlockEntity? {
         if (nbt !is CompoundTag) return null
         val tag = nbt.compound("BlockEntityTag") ?: return null
-        val id = (nbt.tag("Id") ?: nbt.tag("id"))?.asStringOrNull() ?: blockName
+        val id = (tag.tag("Id") ?: tag.tag("id"))?.asStringOrNull() ?: blockName
         return fromNbt(id, tag)
     }
 

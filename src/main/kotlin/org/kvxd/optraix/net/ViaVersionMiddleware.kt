@@ -2,6 +2,8 @@ package org.kvxd.optraix.net
 
 import com.viaversion.viaversion.ViaManagerImpl
 import com.viaversion.viaversion.api.Via
+import com.viaversion.viaversion.api.connection.UserConnection
+import com.viaversion.viaversion.api.minecraft.BlockPosition
 import com.viaversion.viaversion.api.platform.ViaPlatformLoader
 import com.viaversion.viaversion.api.protocol.packet.State as ViaState
 import com.viaversion.viaversion.api.protocol.version.ProtocolVersion
@@ -13,6 +15,7 @@ import com.viaversion.viaversion.exception.CancelEncoderException
 import com.viaversion.viaversion.platform.NoopInjector
 import com.viaversion.viaversion.platform.UserConnectionViaVersionPlatform
 import com.viaversion.viaversion.protocol.ProtocolPipelineImpl
+import com.viaversion.viaversion.protocols.v1_21_2to1_21_4.provider.PickItemProvider
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelFuture
 import io.netty.channel.ChannelInboundHandlerAdapter
@@ -26,6 +29,7 @@ import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddleware
 import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddlewareContext
 import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddlewareSession
 import org.kvxd.kmcprotocol.network.middleware.RawProtocolPacket
+import org.kvxd.optraix.world.BlockPos
 
 class ViaVersionRuntime private constructor(
     private val manager: ViaManagerImpl,
@@ -50,7 +54,7 @@ class ViaVersionRuntime private constructor(
         const val Version = "5.11.0"
         const val ServerProtocol = 765
 
-        fun start(): ViaVersionRuntime {
+        fun start(server: OptraIxServer): ViaVersionRuntime {
             check(!Via.isLoaded()) { "ViaVersion is already initialized in this process" }
 
             val dataDirectory = Files.createTempDirectory("optraix-viaversion-").toFile()
@@ -68,12 +72,33 @@ class ViaVersionRuntime private constructor(
                     manager.protocolManager.checkForMappingCompletion(true)
                     if (!manager.protocolManager.hasLoadedMappings()) Thread.sleep(10)
                 }
+                manager.providers.use(PickItemProvider::class.java, OptraIxPickItemProvider(server))
                 ViaVersionRuntime(manager, dataDirectory)
             } catch (cause: Throwable) {
                 runCatching { manager.destroy() }
                 runCatching { dataDirectory.walkBottomUp().forEach(File::delete) }
                 throw cause
             }
+        }
+    }
+}
+
+private class OptraIxPickItemProvider(
+    private val server: OptraIxServer,
+) : PickItemProvider() {
+
+    override fun pickItemFromBlock(
+        connection: UserConnection,
+        blockPosition: BlockPosition,
+        includeData: Boolean,
+    ) {
+        val uuid = connection.protocolInfo.uuid ?: return
+        server.submit {
+            server.pickItemFromBlock(
+                uuid,
+                BlockPos(blockPosition.x(), blockPosition.y(), blockPosition.z()),
+                includeData,
+            )
         }
     }
 }
