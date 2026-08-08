@@ -1,8 +1,8 @@
 package org.kvxd.optraix.net
 
 import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import org.kvxd.kmcprotocol.core.encoding.PacketWriter
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkFormat
-import org.kvxd.kmcprotocol.extensions.chunk.ChunkSections
 import org.kvxd.kmcprotocol.extensions.chunk.Palette
 import org.kvxd.kmcprotocol.extensions.chunk.PaletteKind
 import org.kvxd.kmcprotocol.extensions.chunk.PalettedContainer
@@ -11,6 +11,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.ChunkBlockEntity
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.Chunk
+import org.kvxd.optraix.world.ChunkSection
 import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkSection as WireChunkSection
@@ -21,6 +22,22 @@ object ChunkPackets {
 
     private val emptyLightMask: List<Long> = buildLightMask()
 
+    private val airBiomes = PalettedContainer.ofSingleValue(PaletteKind.Biomes, 0)
+
+    private val airSectionBytes: ByteArray = PacketWriter(16).let { writer ->
+        WireChunkSection(
+            blockCount = 0,
+            fluidCount = 0,
+            blockStates = PalettedContainer.ofSingleValue(PaletteKind.BlockStates, Blocks.airState),
+            biomes = airBiomes,
+        ).write(writer, format)
+        writer.toByteArray()
+    }
+
+    private val airRun: ByteArray = ByteArray(airSectionBytes.size * SECTION_COUNT).also { run ->
+        for (index in 0 until SECTION_COUNT) airSectionBytes.copyInto(run, index * airSectionBytes.size)
+    }
+
     private fun buildLightMask(): List<Long> {
         val bits = SECTION_COUNT + 2
         val longs = LongArray((bits + 63) / 64)
@@ -28,35 +45,65 @@ object ChunkPackets {
         return longs.toList()
     }
 
-    fun encode(chunk: Chunk): ClientboundMapChunkPacket {
-        val sections = ArrayList<WireChunkSection>(SECTION_COUNT)
-        for (index in 0 until SECTION_COUNT) {
-            val section = chunk.sections[index]
-            val blockStates = if (section == null) {
-                PalettedContainer.ofSingleValue(PaletteKind.BlockStates, Blocks.airState)
-            } else {
-                when {
-                    section.bitsPerEntry == 0 ->
-                        PalettedContainer.ofSingleValue(PaletteKind.BlockStates, section.palette[0])
-                    section.isDirect -> PalettedContainer(
-                        PaletteKind.BlockStates, section.bitsPerEntry, Palette.Direct, section.data.copyOf()
-                    )
-                    else -> PalettedContainer(
-                        PaletteKind.BlockStates,
-                        section.bitsPerEntry,
-                        Palette.Indirect(section.palette.copyOf(section.paletteSize)),
-                        section.data.copyOf(),
-                    )
-                }
-            }
-            sections += WireChunkSection(
-                blockCount = section?.blockCount ?: 0,
-                fluidCount = 0,
-                blockStates = blockStates,
-                biomes = PalettedContainer.ofSingleValue(PaletteKind.Biomes, 0),
+    private fun isAir(section: ChunkSection?): Boolean =
+        section == null ||
+            (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.airState)
+
+    private fun wireSection(section: ChunkSection): WireChunkSection {
+        val blockStates = when {
+            section.bitsPerEntry == 0 ->
+                PalettedContainer.ofSingleValue(PaletteKind.BlockStates, section.palette[0])
+            section.isDirect -> PalettedContainer(
+                PaletteKind.BlockStates, section.bitsPerEntry, Palette.Direct, section.data.copyOf()
+            )
+            else -> PalettedContainer(
+                PaletteKind.BlockStates,
+                section.bitsPerEntry,
+                Palette.Indirect(section.palette.copyOf(section.paletteSize)),
+                section.data.copyOf(),
             )
         }
+        return WireChunkSection(
+            blockCount = section.blockCount,
+            fluidCount = 0,
+            blockStates = blockStates,
+            biomes = airBiomes,
+        )
+    }
 
+    fun sectionData(chunk: Chunk): ByteArray =
+        chunk.wireData ?: encodeSections(chunk).also { chunk.wireData = it }
+
+    private fun encodeSections(chunk: Chunk): ByteArray {
+        var capacity = 0
+        for (index in 0 until SECTION_COUNT) {
+            val section = chunk.sections[index]
+            capacity += if (isAir(section)) {
+                airSectionBytes.size
+            } else {
+                16 + section!!.paletteSize * 5 + section.data.size * 8
+            }
+        }
+
+        val writer = PacketWriter(capacity)
+        var run = 0
+        for (index in 0 until SECTION_COUNT) {
+            val section = chunk.sections[index]
+            if (isAir(section)) {
+                run++
+                continue
+            }
+            if (run > 0) {
+                writer.writeBytes(airRun, 0, run * airSectionBytes.size)
+                run = 0
+            }
+            wireSection(section!!).write(writer, format)
+        }
+        if (run > 0) writer.writeBytes(airRun, 0, run * airSectionBytes.size)
+        return writer.toByteArray()
+    }
+
+    fun encode(chunk: Chunk): ClientboundMapChunkPacket {
         val blockEntities = chunk.blockEntities.entries.map { (key, entity) ->
             ChunkBlockEntity(
                 packed = ChunkBlockEntity.XZ(key and 15, (key shr 4) and 15),
@@ -70,7 +117,7 @@ object ChunkPackets {
             x = chunk.x,
             z = chunk.z,
             heightmaps = CompoundTag(),
-            chunkData = ChunkSections.encode(sections, format),
+            chunkData = sectionData(chunk),
             blockEntities = blockEntities,
             skyLightMask = emptyList(),
             blockLightMask = emptyList(),

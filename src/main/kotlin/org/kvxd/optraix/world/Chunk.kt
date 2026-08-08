@@ -7,6 +7,12 @@ class Chunk(val x: Int, val z: Int) {
     val sections = arrayOfNulls<ChunkSection>(SECTION_COUNT)
     val blockEntities = HashMap<Int, BlockEntity>()
 
+    var wireData: ByteArray? = null
+
+    fun invalidateWire() {
+        wireData = null
+    }
+
     fun sectionFor(y: Int, create: Boolean): ChunkSection? {
         val index = (y - WORLD_MIN_Y) shr 4
         if (index < 0 || index >= SECTION_COUNT) return null
@@ -14,6 +20,7 @@ class Chunk(val x: Int, val z: Int) {
         if (section == null && create) {
             section = ChunkSection()
             sections[index] = section
+            wireData = null
         }
         return section
     }
@@ -27,7 +34,9 @@ class Chunk(val x: Int, val z: Int) {
         if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) return false
         if (state == Blocks.airState && sectionFor(y, false) == null) return false
         val section = sectionFor(y, true) ?: return false
-        return section.set(index(localX, y and 15, localZ), state)
+        val changed = section.set(index(localX, y and 15, localZ), state)
+        if (changed) wireData = null
+        return changed
     }
 
     fun blockEntityKey(localX: Int, y: Int, localZ: Int): Int =

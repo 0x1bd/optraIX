@@ -134,6 +134,7 @@ object WorldStorage {
             val data = LongArray(input.readInt()) { input.readLong() }
             chunk.sections[index] = ChunkSection.restore(bits, palette, paletteSize, data, blockCount)
         }
+        chunk.invalidateWire()
 
         val entityCount = input.readInt()
         repeat(entityCount) {

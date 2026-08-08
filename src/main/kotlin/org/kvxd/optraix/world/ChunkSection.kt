@@ -132,6 +132,26 @@ class ChunkSection {
         }
     }
 
+    fun fillLayer(y: Int, state: Int) {
+        if (state == Blocks.airState) return
+        if (bitsPerEntry != 0 || palette[0] != Blocks.airState) {
+            val base = y shl 8
+            for (index in base until base + 256) set(index, state)
+            return
+        }
+        bitsPerEntry = 4
+        palette = IntArray(1 shl 4).also {
+            it[0] = Blocks.airState
+            it[1] = state
+        }
+        paletteSize = 2
+        paletteIndex = null
+        data = LongArray(longArraySize(4))
+        val base = y * 16
+        for (cell in base until base + 16) data[cell] = LayerWord
+        blockCount = 256
+    }
+
     fun fill(state: Int) {
         bitsPerEntry = 0
         palette = intArrayOf(state)
@@ -144,6 +164,12 @@ class ChunkSection {
     companion object {
         const val DirectBits = 15
         private const val IndexedPaletteSize = 32
+
+        private val LayerWord: Long = run {
+            var word = 0L
+            for (slot in 0 until 16) word = word or (1L shl (slot * 4))
+            word
+        }
 
         fun restore(
             bitsPerEntry: Int,
