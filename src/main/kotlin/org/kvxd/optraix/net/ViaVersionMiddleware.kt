@@ -3,6 +3,7 @@ package org.kvxd.optraix.net
 import com.viaversion.viaversion.ViaManagerImpl
 import com.viaversion.viaversion.api.Via
 import com.viaversion.viaversion.api.platform.ViaPlatformLoader
+import com.viaversion.viaversion.api.protocol.packet.State as ViaState
 import com.viaversion.viaversion.api.protocol.version.ProtocolVersion
 import com.viaversion.viaversion.commands.ViaCommandHandler
 import com.viaversion.viaversion.configuration.AbstractViaConfig
@@ -20,6 +21,7 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
+import org.kvxd.kmcprotocol.core.ProtocolState
 import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddleware
 import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddlewareContext
 import org.kvxd.kmcprotocol.network.middleware.ProtocolMiddlewareSession
@@ -88,6 +90,7 @@ private class ViaVersionSession(
     }
 
     override suspend fun inbound(packet: RawProtocolPacket): List<RawProtocolPacket> {
+        connection.syncInboundState(packet.state)
         if (!connection.checkIncomingPacket(packet.bytes.size)) return emptyList()
         if (!connection.shouldTransformPacket()) return listOf(packet)
 
@@ -110,6 +113,7 @@ private class ViaVersionSession(
     }
 
     override suspend fun outbound(packet: RawProtocolPacket): List<RawProtocolPacket> {
+        connection.syncOutboundState(packet.state)
         if (!connection.checkOutgoingPacket()) return emptyList()
         if (!connection.shouldTransformPacket()) return listOf(packet)
 
@@ -167,6 +171,16 @@ private class KmcViaUserConnection(
     private val captureLock = Any()
     private var capture: Capture? = null
     private var scheduledThread: Thread? = null
+
+    fun syncInboundState(state: ProtocolState) {
+        val expected = state.toViaState()
+        if (protocolInfo.clientState != expected) protocolInfo.clientState = expected
+    }
+
+    fun syncOutboundState(state: ProtocolState) {
+        val expected = state.toViaState()
+        if (protocolInfo.serverState != expected) protocolInfo.serverState = expected
+    }
 
     fun beginInbound(packet: RawProtocolPacket) = begin(Flow.Inbound, packet)
 
@@ -298,4 +312,12 @@ private fun ByteBuf.copyBytes(): ByteArray {
     val bytes = ByteArray(readableBytes())
     getBytes(readerIndex(), bytes)
     return bytes
+}
+
+private fun ProtocolState.toViaState(): ViaState = when (this) {
+    ProtocolState.Handshake -> ViaState.HANDSHAKE
+    ProtocolState.Status -> ViaState.STATUS
+    ProtocolState.Login -> ViaState.LOGIN
+    ProtocolState.Configuration -> ViaState.CONFIGURATION
+    ProtocolState.Play -> ViaState.PLAY
 }

@@ -20,7 +20,13 @@ object ChunkPackets {
 
     private val format = ChunkFormat.v1_18(SECTION_COUNT)
 
-    private val emptyLightMask: List<Long> = buildLightMask()
+    private const val LightBytesPerSection = 2048
+
+    private val fullLightMask: List<Long> = buildLightMask()
+
+    private val fullSkyLightSection: List<Short> = List(LightBytesPerSection) { 0xFF.toShort() }
+
+    private val fullSkyLight: List<List<Short>> = List(SECTION_COUNT + 2) { fullSkyLightSection }
 
     private val airBiomes = PalettedContainer.ofSingleValue(PaletteKind.Biomes, 0)
 
@@ -47,15 +53,17 @@ object ChunkPackets {
 
     private fun isAir(section: ChunkSection?): Boolean =
         section == null ||
-            (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.airState)
+                (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.airState)
 
     private fun wireSection(section: ChunkSection): WireChunkSection {
         val blockStates = when {
             section.bitsPerEntry == 0 ->
                 PalettedContainer.ofSingleValue(PaletteKind.BlockStates, section.palette[0])
+
             section.isDirect -> PalettedContainer(
                 PaletteKind.BlockStates, section.bitsPerEntry, Palette.Direct, section.data.copyOf()
             )
+
             else -> PalettedContainer(
                 PaletteKind.BlockStates,
                 section.bitsPerEntry,
@@ -119,11 +127,11 @@ object ChunkPackets {
             heightmaps = CompoundTag(),
             chunkData = sectionData(chunk),
             blockEntities = blockEntities,
-            skyLightMask = emptyList(),
+            skyLightMask = fullLightMask,
             blockLightMask = emptyList(),
-            emptySkyLightMask = emptyLightMask,
-            emptyBlockLightMask = emptyLightMask,
-            skyLight = emptyList(),
+            emptySkyLightMask = emptyList(),
+            emptyBlockLightMask = fullLightMask,
+            skyLight = fullSkyLight,
             blockLight = emptyList(),
         )
     }

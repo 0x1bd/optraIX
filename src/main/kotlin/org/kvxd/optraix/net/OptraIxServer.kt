@@ -34,8 +34,10 @@ import org.kvxd.kmcprotocol.core.ProtocolState
 import org.kvxd.kmcprotocol.generated.Protocols
 import org.kvxd.kmcprotocol.network.server.Server
 import org.kvxd.kmcprotocol.network.server.ServerSession
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundFeatureFlagsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundFinishConfigurationPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundRegistryDataPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.configuration.clientbound.ClientboundTagsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.clientbound.ClientboundCompressPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.clientbound.ClientboundSuccessPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.serverbound.ServerboundLoginStartPacket
@@ -57,6 +59,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.Clientbou
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPlayerInfoPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPlayerRemovePacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundPositionPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundServerDataPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSetSlotPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSoundEffectPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSpawnEntityPacket
@@ -783,7 +786,9 @@ class OptraIxServer(val config: ServerConfig) {
 
                     is org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.serverbound.ServerboundLoginAcknowledgedPacket -> {
                         session.send(brandPacket())
+                        session.send(ClientboundFeatureFlagsPacket(listOf("minecraft:vanilla")))
                         session.send(ClientboundRegistryDataPacket(Registries.codec))
+                        session.send(ClientboundTagsPacket(emptyList()))
                         session.send(ClientboundFinishConfigurationPacket)
                     }
 
@@ -954,6 +959,7 @@ class OptraIxServer(val config: ServerConfig) {
                 portalCooldown = 0,
             )
         )
+        connection.send(ClientboundServerDataPacket(Text.of(config.motd), null, false))
         sendAbilities(player)
         connection.send(ClientboundHeldItemSlotPacket(player.selectedSlot.toByte()))
         connection.send(ClientboundSpawnPositionPacket(Position(0, 0, 1), 0.0f))
