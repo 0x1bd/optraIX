@@ -1,6 +1,6 @@
 package org.kvxd.optraix.interaction
 
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.property.BlockFacing

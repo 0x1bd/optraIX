@@ -1,9 +1,9 @@
 package org.kvxd.optraix.net
 
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
-import net.benwoodworth.knbt.NbtString
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
+import net.lenni0451.mcstructs.nbt.tags.StringTag
+import org.kvxd.optraix.nbt.compoundOf
+import org.kvxd.optraix.nbt.listOfTags
 import org.kvxd.optraix.player.Player
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundResetScorePacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundScoreboardDisplayObjectivePacket
@@ -71,10 +71,10 @@ class Sidebar(private val title: String = "optraix") {
 
     private fun render(line: Line): NbtTag {
         val parts = listOf(
-            NbtCompound(mapOf("text" to NbtString(line.label), "color" to NbtString(Text.Gray))),
-            NbtCompound(mapOf("text" to NbtString(line.value), "color" to NbtString(line.color))),
+            compoundOf("text" to StringTag(line.label), "color" to StringTag(Text.Gray)),
+            compoundOf("text" to StringTag(line.value), "color" to StringTag(line.color)),
         )
-        return NbtCompound(mapOf("text" to NbtString(""), "extra" to NbtList(parts)))
+        return compoundOf("text" to StringTag(""), "extra" to listOfTags(parts))
     }
 
     private fun entityOf(index: Int): String = "optraix.$index"

@@ -1,10 +1,12 @@
 package org.kvxd.optraix
 
-import net.benwoodworth.knbt.NbtByte
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
-import net.benwoodworth.knbt.NbtString
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.tags.ByteTag
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import net.lenni0451.mcstructs.nbt.tags.ListTag
+import net.lenni0451.mcstructs.nbt.tags.StringTag
+import net.lenni0451.mcstructs.nbt.NbtTag
+import org.kvxd.optraix.nbt.list
+import org.kvxd.optraix.nbt.tag
 import org.kvxd.optraix.command.CommandRegistry
 import org.kvxd.optraix.net.ChatFont
 import org.kvxd.optraix.net.OptraIxServer
@@ -26,26 +28,26 @@ class HelpTest {
     }
 
     private fun plain(tag: NbtTag): String {
-        if (tag !is NbtCompound) return ""
-        val head = (tag["text"] as? NbtString)?.value ?: ""
-        val extra = tag["extra"] as? NbtList<*> ?: return head
+        if (tag !is CompoundTag) return ""
+        val head = (tag.tag("text") as? StringTag)?.value ?: ""
+        val extra = tag.list("extra") ?: return head
         return head + extra.joinToString("") { plain(it) }
     }
 
     private fun leftColumn(tag: NbtTag): String? {
-        val extra = (tag as? NbtCompound)?.get("extra") as? NbtList<*> ?: return null
-        val first = extra.firstOrNull() as? NbtCompound ?: return null
-        return (first["text"] as? NbtString)?.value
+        val extra = (tag as? CompoundTag)?.list("extra") ?: return null
+        val first = extra.firstOrNull() as? CompoundTag ?: return null
+        return (first.tag("text") as? StringTag)?.value
     }
 
     private fun pixelOffsetOfDescription(tag: NbtTag): Int? {
-        val extra = (tag as? NbtCompound)?.get("extra") as? NbtList<*> ?: return null
-        if (extra.size < 2) return null
+        val extra = (tag as? CompoundTag)?.get("extra") as? ListTag<*> ?: return null
+        if (extra.size() < 2) return null
         var width = 0
-        for (index in 0 until extra.size - 1) {
-            val part = extra[index] as? NbtCompound ?: continue
-            val text = (part["text"] as? NbtString)?.value ?: continue
-            val bold = (part["bold"] as? NbtByte)?.value?.toInt() == 1
+        for (index in 0 until extra.size() - 1) {
+            val part = extra[index] as? CompoundTag ?: continue
+            val text = (part.tag("text") as? StringTag)?.value ?: continue
+            val bold = (part.tag("bold") as? ByteTag)?.value?.toInt() == 1
             width += ChatFont.width(text, bold)
         }
         return width

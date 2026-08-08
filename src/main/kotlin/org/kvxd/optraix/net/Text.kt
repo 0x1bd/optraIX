@@ -1,39 +1,35 @@
 package org.kvxd.optraix.net
 
-import net.benwoodworth.knbt.NbtByte
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
-import net.benwoodworth.knbt.NbtString
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
+import net.lenni0451.mcstructs.nbt.tags.ByteTag
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import net.lenni0451.mcstructs.nbt.tags.StringTag
+import org.kvxd.optraix.nbt.compoundOf
+import org.kvxd.optraix.nbt.listOfTags
 
 object Text {
 
-    fun of(text: String): NbtTag = NbtCompound(mapOf("text" to NbtString(text)))
+    fun of(text: String): NbtTag = compoundOf("text" to StringTag(text))
 
-    fun colored(text: String, color: String): NbtTag = NbtCompound(
-        mapOf("text" to NbtString(text), "color" to NbtString(color))
-    )
+    fun colored(text: String, color: String): NbtTag =
+        compoundOf("text" to StringTag(text), "color" to StringTag(color))
 
-    fun bold(text: String, color: String): NbtTag = NbtCompound(
-        mapOf(
-            "text" to NbtString(text),
-            "color" to NbtString(color),
-            "bold" to NbtByte(1),
-        )
+    fun bold(text: String, color: String): NbtTag = compoundOf(
+        "text" to StringTag(text),
+        "color" to StringTag(color),
+        "bold" to ByteTag(1),
     )
 
     fun columns(left: String, right: String, targetWidth: Int): NbtTag {
         val (spaces, boldSpaces) = ChatFont.padding(targetWidth - ChatFont.width(left))
-        val parts = ArrayList<NbtCompound>(4)
-        parts += NbtCompound(mapOf("text" to NbtString(left), "color" to NbtString(Aqua)))
-        if (spaces > 0) parts += NbtCompound(mapOf("text" to NbtString(" ".repeat(spaces))))
+        val parts = ArrayList<CompoundTag>(4)
+        parts += compoundOf("text" to StringTag(left), "color" to StringTag(Aqua))
+        if (spaces > 0) parts += compoundOf("text" to StringTag(" ".repeat(spaces)))
         if (boldSpaces > 0) {
-            parts += NbtCompound(
-                mapOf("text" to NbtString(" ".repeat(boldSpaces)), "bold" to NbtByte(1))
-            )
+            parts += compoundOf("text" to StringTag(" ".repeat(boldSpaces)), "bold" to ByteTag(1))
         }
-        parts += NbtCompound(mapOf("text" to NbtString(right), "color" to NbtString(Gray)))
-        return NbtCompound(mapOf("text" to NbtString(""), "extra" to NbtList(parts)))
+        parts += compoundOf("text" to StringTag(right), "color" to StringTag(Gray))
+        return compoundOf("text" to StringTag(""), "extra" to listOfTags(parts))
     }
 
     const val Gray = "gray"

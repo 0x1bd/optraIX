@@ -1,10 +1,12 @@
 package org.kvxd.optraix.tools
 
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
-import net.benwoodworth.knbt.NbtLongArray
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import net.lenni0451.mcstructs.nbt.tags.ListTag
+import net.lenni0451.mcstructs.nbt.tags.LongArrayTag
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.nbt.NbtIo
+import org.kvxd.optraix.nbt.asStringOrNull
+import org.kvxd.optraix.nbt.tag
 import org.kvxd.optraix.nbt.compound
 import org.kvxd.optraix.nbt.int
 import org.kvxd.optraix.nbt.list
@@ -55,7 +57,7 @@ object AnvilImport {
     fun regionFiles(worldDir: File): List<File> =
         (File(worldDir, "region").listFiles()?.filter { it.name.endsWith(".mca") } ?: emptyList()).sorted()
 
-    private fun readChunk(file: RandomAccessFile, offset: Int, length: Int): NbtCompound? {
+    private fun readChunk(file: RandomAccessFile, offset: Int, length: Int): CompoundTag? {
         if (offset <= 0 || length <= 0) return null
         file.seek(offset * 4096L)
         val declared = file.readInt()
@@ -72,7 +74,7 @@ object AnvilImport {
         return runCatching { NbtIo.readNamed(DataInputStream(stream.buffered())) }.getOrNull()
     }
 
-    private fun stateOf(entry: NbtCompound, cache: HashMap<String, Int>, stats: Stats): Int {
+    private fun stateOf(entry: CompoundTag, cache: HashMap<String, Int>, stats: Stats): Int {
         val name = entry.string("Name") ?: return Blocks.airState
         val properties = entry.compound("Properties")
         val key = if (properties == null || properties.isEmpty()) {
@@ -80,8 +82,8 @@ object AnvilImport {
         } else {
             buildString {
                 append(name).append('[')
-                properties.entries.sortedBy { it.key }.joinTo(this, ",") { (k, v) ->
-                    "$k=${v.toString().trim('"')}"
+                properties.value.entries.sortedBy { it.key }.joinTo(this, ",") { (k, v) ->
+                    "$k=${v.asStringOrNull() ?: v.toString()}"
                 }
                 append(']')
             }
@@ -122,7 +124,7 @@ object AnvilImport {
     }
 
     private fun importChunk(
-        root: NbtCompound,
+        root: CompoundTag,
         chunkX: Int,
         chunkZ: Int,
         yShift: Int,
@@ -133,13 +135,13 @@ object AnvilImport {
         val sections = root.list("sections") ?: return
         var placed = false
         for (raw in sections) {
-            val section = raw as? NbtCompound ?: continue
+            val section = raw as? CompoundTag ?: continue
             val sectionY = section.int("Y") ?: continue
             val states = section.compound("block_states") ?: continue
             val palette = states.list("palette") ?: continue
             if (palette.isEmpty()) continue
-            val ids = IntArray(palette.size) { stateOf(palette[it] as NbtCompound, cache, stats) }
-            val data = (states["data"] as? NbtLongArray)?.toLongArray()
+            val ids = IntArray(palette.size()) { stateOf(palette.get(it) as CompoundTag, cache, stats) }
+            val data = (states.tag("data") as? LongArrayTag)?.value
 
             if (data == null) {
                 val single = ids[0]
@@ -158,7 +160,7 @@ object AnvilImport {
                 continue
             }
 
-            var bits = 32 - Integer.numberOfLeadingZeros(maxOf(1, palette.size - 1))
+            var bits = 32 - Integer.numberOfLeadingZeros(maxOf(1, palette.size() - 1))
             if (bits < 4) bits = 4
             val perLong = 64 / bits
             val mask = (1L shl bits) - 1L
@@ -182,8 +184,8 @@ object AnvilImport {
             stats.sections++
         }
 
-        for (raw in root.list("block_entities") ?: NbtList(emptyList<NbtCompound>())) {
-            val entity = raw as? NbtCompound ?: continue
+        for (raw in root.list("block_entities") ?: ListTag<CompoundTag>()) {
+            val entity = raw as? CompoundTag ?: continue
             val id = entity.string("id") ?: continue
             val x = entity.int("x") ?: continue
             val y = (entity.int("y") ?: continue) + yShift

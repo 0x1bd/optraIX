@@ -10,12 +10,14 @@ group = "org.kvxd"
 version = "1.0-SNAPSHOT"
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven("https://libraries.minecraft.net")
 }
 
 dependencies {
     implementation(libs.kmcprotocol.extensions)
+    implementation(libs.mcstructs.nbt)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

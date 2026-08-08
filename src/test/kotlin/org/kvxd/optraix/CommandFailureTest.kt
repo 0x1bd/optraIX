@@ -1,9 +1,11 @@
 package org.kvxd.optraix
 
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
-import net.benwoodworth.knbt.NbtString
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import net.lenni0451.mcstructs.nbt.tags.ListTag
+import net.lenni0451.mcstructs.nbt.tags.StringTag
+import net.lenni0451.mcstructs.nbt.NbtTag
+import org.kvxd.optraix.nbt.list
+import org.kvxd.optraix.nbt.tag
 import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.literal
@@ -28,9 +30,9 @@ class CommandFailureTest {
     }
 
     private fun plain(tag: NbtTag): String {
-        if (tag !is NbtCompound) return ""
-        val head = (tag["text"] as? NbtString)?.value ?: ""
-        val extra = tag["extra"] as? NbtList<*> ?: return head
+        if (tag !is CompoundTag) return ""
+        val head = (tag.tag("text") as? StringTag)?.value ?: ""
+        val extra = tag.list("extra") ?: return head
         return head + extra.joinToString("") { plain(it) }
     }
 

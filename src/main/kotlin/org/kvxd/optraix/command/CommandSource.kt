@@ -1,6 +1,6 @@
 package org.kvxd.optraix.command
 
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.net.Text
 import org.kvxd.optraix.player.Player

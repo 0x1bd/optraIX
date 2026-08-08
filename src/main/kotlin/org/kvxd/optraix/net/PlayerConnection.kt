@@ -5,7 +5,7 @@ import kotlinx.coroutines.channels.Channel
 import org.kvxd.optraix.Log
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
 import org.kvxd.kmcprotocol.core.MinecraftPacket
 import org.kvxd.kmcprotocol.network.server.ServerSession
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSystemChatPacket

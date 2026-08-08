@@ -2,15 +2,18 @@ package org.kvxd.optraix.worldedit
 
 import java.io.DataInputStream
 import java.io.File
-import net.benwoodworth.knbt.NbtByteArray
-import net.benwoodworth.knbt.NbtCompound
-import net.benwoodworth.knbt.NbtList
+import net.lenni0451.mcstructs.nbt.tags.ByteArrayTag
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
+import net.lenni0451.mcstructs.nbt.tags.IntArrayTag
+import net.lenni0451.mcstructs.nbt.tags.ListTag
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.nbt.NbtIo
 import org.kvxd.optraix.nbt.asIntOrNull
 import org.kvxd.optraix.nbt.asStringOrNull
 import org.kvxd.optraix.nbt.compound
 import org.kvxd.optraix.nbt.int
+import org.kvxd.optraix.nbt.list
+import org.kvxd.optraix.nbt.tag
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
 
@@ -22,12 +25,12 @@ object Schematic {
             NbtIo.readCompressedOrPlain(input) { path, size, data ->
                 if (!isBlockData(path)) return@readCompressedOrPlain null
                 data.skipNBytes(size.toLong())
-                NbtByteArray(byteArrayOf())
+                ByteArrayTag(byteArrayOf())
             }
         }
         val schematic = root.compound("Schematic") ?: root
         val v3 = schematic.compound("Blocks") != null
-        if (!v3 && schematic["Palette"] == null) {
+        if (!v3 && schematic.tag("Palette") == null) {
             throw SchematicException("unrecognised schematic format in ${file.name}")
         }
         val (width, height, length) = dimensions(schematic)
@@ -44,7 +47,7 @@ object Schematic {
                 if (decoded) throw SchematicException("schematic contains more than one block data array")
                 decode(data, size, volume, lookup, builder)
                 decoded = true
-                NbtByteArray(byteArrayOf())
+                ByteArrayTag(byteArrayOf())
             }
         }
         if (!decoded) {
@@ -57,12 +60,12 @@ object Schematic {
             offsetOf(schematic),
             builder.build(sorted = true),
         )
-        val blockEntities = blocks["BlockEntities"] as? NbtList<*>
+        val blockEntities = blocks.list("BlockEntities")
         loadBlockEntities(clipboard, blockEntities)
         return clipboard
     }
 
-    private fun dimensions(schematic: NbtCompound): Triple<Int, Int, Int> {
+    private fun dimensions(schematic: CompoundTag): Triple<Int, Int, Int> {
         val width = schematic.int("Width") ?: throw SchematicException("schematic has no Width")
         val height = schematic.int("Height") ?: throw SchematicException("schematic has no Height")
         val length = schematic.int("Length") ?: throw SchematicException("schematic has no Length")
@@ -76,7 +79,7 @@ object Schematic {
         throw SchematicException("schematic volume exceeds ${Int.MAX_VALUE} blocks")
     }
 
-    private fun offsetOf(schematic: NbtCompound): BlockPos {
+    private fun offsetOf(schematic: CompoundTag): BlockPos {
         val metadata = schematic.compound("Metadata")
         if (metadata != null) {
             val x = metadata.int("WEOffsetX")
@@ -87,8 +90,8 @@ object Schematic {
         return BlockPos(0, 0, 0)
     }
 
-    private fun paletteLookup(palette: NbtCompound): IntArray {
-        val maxIndex = palette.values.mapNotNull { it.asIntOrNull() }.maxOrNull() ?: 0
+    private fun paletteLookup(palette: CompoundTag): IntArray {
+        val maxIndex = palette.value.values.mapNotNull { it.asIntOrNull() }.maxOrNull() ?: 0
         val lookup = IntArray(maxIndex + 1) { Blocks.airState }
         for ((name, value) in palette) {
             val index = value.asIntOrNull() ?: continue
@@ -132,17 +135,17 @@ object Schematic {
         if (target != volume) throw SchematicException("block data contains $target entries for a volume of $volume")
     }
 
-    private fun loadBlockEntities(clipboard: Clipboard, blockEntities: NbtList<*>?) {
+    private fun loadBlockEntities(clipboard: Clipboard, blockEntities: ListTag<*>?) {
         blockEntities?.forEach { element ->
-            val compound = element as? NbtCompound ?: return@forEach
-            val pos = compound["Pos"]
+            val compound = element as? CompoundTag ?: return@forEach
+            val pos = compound.tag("Pos")
             val coords = when (pos) {
-                is net.benwoodworth.knbt.NbtIntArray -> pos.toIntArray()
-                is NbtList<*> -> pos.mapNotNull { it.asIntOrNull() }.toIntArray()
+                is IntArrayTag -> pos.value
+                is ListTag<*> -> pos.mapNotNull { it.asIntOrNull() }.toIntArray()
                 else -> return@forEach
             }
             if (coords.size < 3) return@forEach
-            val id = (compound["Id"] ?: compound["id"])?.asStringOrNull() ?: return@forEach
+            val id = (compound.tag("Id") ?: compound.tag("id"))?.asStringOrNull() ?: return@forEach
             val payload = compound.compound("Data") ?: compound
             BlockEntityNbt.fromNbt(id, payload)?.let {
                 clipboard.blockEntities[clipboard.index(coords[0], coords[1], coords[2])] = it

@@ -1,6 +1,6 @@
 package org.kvxd.optraix
 
-import net.benwoodworth.knbt.NbtTag
+import net.lenni0451.mcstructs.nbt.NbtTag
 import org.kvxd.optraix.net.PacketSink
 import org.kvxd.kmcprotocol.core.MinecraftPacket
 

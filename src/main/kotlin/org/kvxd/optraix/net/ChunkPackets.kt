@@ -1,6 +1,6 @@
 package org.kvxd.optraix.net
 
-import net.benwoodworth.knbt.NbtCompound
+import net.lenni0451.mcstructs.nbt.tags.CompoundTag
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkFormat
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkSections
 import org.kvxd.kmcprotocol.extensions.chunk.Palette
@@ -69,7 +69,7 @@ object ChunkPackets {
         return ClientboundMapChunkPacket(
             x = chunk.x,
             z = chunk.z,
-            heightmaps = NbtCompound(emptyMap()),
+            heightmaps = CompoundTag(),
             chunkData = ChunkSections.encode(sections, format),
             blockEntities = blockEntities,
             skyLightMask = emptyList(),
