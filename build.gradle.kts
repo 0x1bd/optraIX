@@ -53,7 +53,6 @@ graalvmNative {
             mainClass.set("org.kvxd.optraix.MainKt")
             buildArgs.add("-O2")
             buildArgs.add("-march=compatibility")
-            buildArgs.add("-H:IncludeResources=assets/viaversion/.*")
         }
     }
     metadataRepository {
