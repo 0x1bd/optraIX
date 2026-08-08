@@ -40,6 +40,31 @@ class GameWorld(
 
     fun snapshotChunks(): List<Chunk> = chunks.values.toList()
 
+    fun copyForSave(): GameWorld {
+        val copy = GameWorld(generator)
+
+        for (chunk in chunks.values) {
+            val target = copy.replaceChunk(chunk.x, chunk.z)
+
+            for (sectionIndex in 0 until SECTION_COUNT) {
+                val section = chunk.sections[sectionIndex] ?: continue
+
+                target.sections[sectionIndex] = ChunkSection.restore(
+                    bitsPerEntry = section.bitsPerEntry,
+                    palette = section.palette.copyOf(),
+                    paletteSize = section.paletteSize,
+                    data = section.data.copyOf(),
+                    blockCount = section.blockCount,
+                )
+            }
+
+            target.blockEntities.putAll(chunk.blockEntities)
+        }
+
+        copy.restoreTicks(snapshotTicks())
+        return copy
+    }
+
     override fun getBlock(pos: BlockPos): Int {
         if (pos.y < WORLD_MIN_Y || pos.y >= WORLD_MIN_Y + WORLD_HEIGHT) return Blocks.airState
         val chunk = chunkAt(pos.x shr 4, pos.z shr 4)
@@ -62,6 +87,13 @@ class GameWorld(
         if (pos.y < WORLD_MIN_Y || pos.y >= WORLD_MIN_Y + WORLD_HEIGHT) return false
         val chunk = chunkAt(pos.x shr 4, pos.z shr 4)
         return chunk.setBlock(pos.x and 15, pos.y, pos.z and 15, state)
+    }
+
+    fun setBlockEntitySilent(pos: BlockPos, entity: BlockEntity) {
+        val chunk = chunkAt(pos.x shr 4, pos.z shr 4)
+        chunk.blockEntities[
+            chunk.blockEntityKey(pos.x and 15, pos.y, pos.z and 15)
+        ] = entity
     }
 
     override fun getBlockEntity(pos: BlockPos): BlockEntity? {

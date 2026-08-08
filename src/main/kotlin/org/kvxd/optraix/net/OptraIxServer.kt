@@ -191,13 +191,22 @@ class OptraIxServer(val config: ServerConfig) {
         for (player in players) profiles.put(player)
         runCatching { profiles.save() }
             .onFailure { Log.error("players", "save failed", it) }
-        val optraix = engine as? OptraIxEngine
-        optraix?.decompile(world)
-        val saved = runCatching { WorldStorage.save(world, config.worldFile) }
+
+        val activeCircuit = (engine as? OptraIxEngine)?.circuit
+        val worldToSave = if (activeCircuit == null) {
+            world
+        } else {
+            world.copyForSave().also { snapshot ->
+                activeCircuit.writeSnapshot(snapshot)
+                activeCircuit.exportPendingTicks(snapshot)
+            }
+        }
+
+        return runCatching {
+            WorldStorage.save(worldToSave, config.worldFile)
+        }
             .onFailure { Log.error("world", "save failed", it) }
             .getOrDefault(0)
-        if (running && optraix != null) compileRedstone(optraix)
-        return saved
     }
 
     fun compileRedstone(target: OptraIxEngine) {

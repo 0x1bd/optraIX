@@ -580,40 +580,154 @@ class OptraIxCircuit internal constructor(
         val chain = chainIndexOf[node]
         val offset = chainOffset[chain]
         val powered = chainPowered[chain]
+
         var changed = powered xor chainShadow[chain]
         chainShadow[chain] = powered
+
         while (changed != 0L) {
             val link = java.lang.Long.numberOfTrailingZeros(changed)
             changed = changed and (changed - 1)
-            val slot = offset + link
-            val pos = BlockPos.unpack(linkPos[slot])
-            val kind = linkKind[slot].toInt()
-            val on = ((powered ushr link) and 1L) != 0L
-            when ((kind ushr LinkTypeShift) and 3) {
-                LinkRepeater -> world.setBlock(
+
+            writeLink(
+                world,
+                offset + link,
+                ((powered ushr link) and 1L) != 0L,
+            )
+        }
+    }
+
+    private fun writeLink(world: World, slot: Int, on: Boolean) {
+        val pos = BlockPos.unpack(linkPos[slot])
+        val kind = linkKind[slot].toInt()
+
+        when ((kind ushr LinkTypeShift) and 3) {
+            LinkRepeater -> world.setBlock(
+                pos,
+                BlockStates.repeaterState(
+                    kind and 7,
+                    BlockDirection.Values[linkFacing[slot].toInt()],
+                    false,
+                    on,
+                ),
+            )
+
+            LinkComparator -> {
+                world.setBlock(
                     pos,
-                    BlockStates.repeaterState(
-                        kind and 7,
+                    BlockStates.comparatorState(
                         BlockDirection.Values[linkFacing[slot].toInt()],
-                        false,
+                        if ((kind and SubtractLink) != 0) {
+                            ComparatorMode.Subtract
+                        } else {
+                            ComparatorMode.Compare
+                        },
                         on,
                     ),
                 )
-                LinkComparator -> {
-                    world.setBlock(
-                        pos,
-                        BlockStates.comparatorState(
-                            BlockDirection.Values[linkFacing[slot].toInt()],
-                            if ((kind and SubtractLink) != 0) ComparatorMode.Subtract else ComparatorMode.Compare,
-                            on,
-                        ),
-                    )
-                    world.setBlockEntity(pos, BlockEntity.Comparator(if (on) linkOn[slot].toInt() else 0))
-                }
-                LinkTorch -> world.setBlock(pos, BlockStates.torchState(on))
-                else -> world.setBlock(
+
+                world.setBlockEntity(
                     pos,
-                    BlockStates.wallTorchState(on, BlockDirection.Values[linkFacing[slot].toInt()]),
+                    BlockEntity.Comparator(
+                        if (on) linkOn[slot].toInt() else 0
+                    ),
+                )
+            }
+
+            LinkTorch ->
+                world.setBlock(pos, BlockStates.torchState(on))
+
+            else ->
+                world.setBlock(
+                    pos,
+                    BlockStates.wallTorchState(
+                        on,
+                        BlockDirection.Values[linkFacing[slot].toInt()],
+                    ),
+                )
+        }
+    }
+
+    private fun writeLinkSnapshot(
+        world: GameWorld,
+        slot: Int,
+        on: Boolean,
+    ) {
+        val pos = BlockPos.unpack(linkPos[slot])
+        val kind = linkKind[slot].toInt()
+
+        when ((kind ushr LinkTypeShift) and 3) {
+            LinkRepeater -> world.setBlockSilent(
+                pos,
+                BlockStates.repeaterState(
+                    kind and 7,
+                    BlockDirection.Values[linkFacing[slot].toInt()],
+                    false,
+                    on,
+                ),
+            )
+
+            LinkComparator -> {
+                world.setBlockSilent(
+                    pos,
+                    BlockStates.comparatorState(
+                        BlockDirection.Values[linkFacing[slot].toInt()],
+                        if ((kind and SubtractLink) != 0) {
+                            ComparatorMode.Subtract
+                        } else {
+                            ComparatorMode.Compare
+                        },
+                        on,
+                    ),
+                )
+
+                world.setBlockEntitySilent(
+                    pos,
+                    BlockEntity.Comparator(
+                        if (on) linkOn[slot].toInt() else 0
+                    ),
+                )
+            }
+
+            LinkTorch ->
+                world.setBlockSilent(pos, BlockStates.torchState(on))
+
+            else ->
+                world.setBlockSilent(
+                    pos,
+                    BlockStates.wallTorchState(
+                        on,
+                        BlockDirection.Values[linkFacing[slot].toInt()],
+                    ),
+                )
+        }
+    }
+
+    fun writeSnapshot(world: GameWorld) {
+        for (node in 0 until count) {
+            if (typeOf(node) == NodeType.Chain) {
+                val chain = chainIndexOf[node]
+                val offset = chainOffset[chain]
+                val powered = chainPowered[chain]
+
+                for (link in 0 until chainLength[chain]) {
+                    writeLinkSnapshot(
+                        world,
+                        offset + link,
+                        ((powered ushr link) and 1L) != 0L,
+                    )
+                }
+
+                continue
+            }
+
+            val pos = BlockPos.unpack(posKey[node])
+
+            world.setBlockSilent(pos, stateOf(node))
+
+            if (typeOf(node) == NodeType.Comparator) {
+                world.setBlockEntitySilent(
+                    pos,
+                    BlockEntity.Comparator(outputOf(node)),
                 )
             }
         }
