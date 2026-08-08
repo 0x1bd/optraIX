@@ -1,8 +1,13 @@
 package org.kvxd.optraix.net
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.kvxd.optraix.Log
 import org.kvxd.optraix.ServerConfig
 import org.kvxd.optraix.block.property.BlockFace
@@ -145,6 +150,15 @@ class OptraIxServer(val config: ServerConfig) {
 
     private var tickThread: Thread? = null
 
+    private var networkJob: Job? = null
+
+    private val stopSignal = CompletableDeferred<Unit>()
+
+    private val shutdownLock = Any()
+
+    @Volatile
+    private var shutdownResult: Int? = null
+
     suspend fun start(scope: CoroutineScope) {
         publishScope = scope
 
@@ -168,18 +182,56 @@ class OptraIxServer(val config: ServerConfig) {
 
         startGameLoop()
 
-        scope.launch(Dispatchers.Default) {
+        networkJob = scope.launch(Dispatchers.Default) {
             server.sessions.collect { session ->
                 launch { runCatching { handleSession(session, this) } }
             }
         }
     }
 
-    fun shutdown(): Int {
+    fun requestStop() {
         running = false
-        runCatching { tickThread?.join(2_000) }
-        runCatching { socket?.close() }
-        return saveWorld()
+        tickThread?.interrupt()
+        stopSignal.complete(Unit)
+    }
+
+    suspend fun awaitStop() {
+        stopSignal.await()
+    }
+
+    fun shutdown(): Int {
+        requestStop()
+        synchronized(shutdownLock) {
+            shutdownResult?.let { return it }
+
+            val thread = tickThread
+            if (thread != null && thread !== Thread.currentThread()) {
+                runCatching { thread.join(ShutdownJoinMillis) }
+                if (thread.isAlive) Log.warn("server", "tick thread did not stop within ${ShutdownJoinMillis}ms")
+            }
+
+            disconnectPlayers()
+            runCatching { socket?.close() }
+            networkJob?.cancel()
+
+            val saved = saveWorld()
+            shutdownResult = saved
+            return saved
+        }
+    }
+
+    private fun disconnectPlayers() {
+        val connections = players.map { it.connection }.distinct()
+        runBlocking {
+            withTimeoutOrNull(DisconnectTimeoutMillis) {
+                coroutineScope {
+                    for (connection in connections) {
+                        launch { runCatching { connection.disconnect(Text.of(ShutdownReason)) } }
+                    }
+                }
+            }
+        }
+        for (connection in connections) connection.close()
     }
 
     fun saveWorld(): Int {
@@ -313,6 +365,7 @@ class OptraIxServer(val config: ServerConfig) {
 
                 if (target > 0) {
                     runHousekeeping()
+                    if (!running) break
                     engine.tickWorld(world)
                     publishWorldChanges()
                     currentTick++
@@ -354,7 +407,7 @@ class OptraIxServer(val config: ServerConfig) {
                 nextTick += budget
                 var now = System.nanoTime()
                 if (now - nextTick > budget * 20) nextTick = now
-                while (now < nextTick) {
+                while (running && now < nextTick) {
                     val remaining = nextTick - now
                     if (remaining > 500_000L) LockSupport.parkNanos(remaining - 300_000L)
                     else Thread.onSpinWait()
@@ -642,9 +695,9 @@ class OptraIxServer(val config: ServerConfig) {
                     }
                 }
             }
-            Log.info("net", "${session.remoteAddress} closed the connection")
+            if (running) Log.info("net", "${session.remoteAddress} closed the connection")
         } catch (cause: Throwable) {
-            Log.error("net", "${session.remoteAddress} failed in ${session.data.state}", cause)
+            if (running) Log.error("net", "${session.remoteAddress} failed in ${session.data.state}", cause)
         } finally {
             val target = player
             if (target != null) submit { removePlayer(target) } else runCatching { session.close() }
@@ -1066,5 +1119,8 @@ class OptraIxServer(val config: ServerConfig) {
         const val WaitForChunksReason: Short = 13
         const val BatchTargetNanos = 500_000L
         const val MaxBatch = 65_536
+        const val ShutdownJoinMillis = 5_000L
+        const val DisconnectTimeoutMillis = 1_000L
+        const val ShutdownReason = "Server closed"
     }
 }

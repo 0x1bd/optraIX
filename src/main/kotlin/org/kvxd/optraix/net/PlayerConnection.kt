@@ -9,6 +9,7 @@ import net.benwoodworth.knbt.NbtTag
 import org.kvxd.kmcprotocol.core.MinecraftPacket
 import org.kvxd.kmcprotocol.network.server.ServerSession
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundSystemChatPacket
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundKickDisconnectPacket
 
 class PlayerConnection(val session: ServerSession, scope: CoroutineScope) : PacketSink {
 
@@ -49,6 +50,15 @@ class PlayerConnection(val session: ServerSession, scope: CoroutineScope) : Pack
 
     override fun sendActionBar(content: NbtTag) {
         send(ClientboundSystemChatPacket(content, true))
+    }
+
+    override suspend fun disconnect(reason: NbtTag) {
+        if (closed) return
+        try {
+            session.send(ClientboundKickDisconnectPacket(reason))
+        } finally {
+            close()
+        }
     }
 
     override fun close() {

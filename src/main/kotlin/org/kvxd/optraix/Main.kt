@@ -1,11 +1,10 @@
 package org.kvxd.optraix
 
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.net.OptraIxServer
+import java.util.concurrent.atomic.AtomicBoolean
 
 fun main(args: Array<String>): Unit = runBlocking {
     val config = ServerConfig.fromArgs(args)
@@ -17,17 +16,23 @@ fun main(args: Array<String>): Unit = runBlocking {
     println("loaded $states block states in ${System.currentTimeMillis() - started}ms")
 
     val server = OptraIxServer(config)
+    val shutdownReported = AtomicBoolean(false)
 
-    Runtime.getRuntime().addShutdownHook(
-        Thread {
-            println("shutting down, saving world")
-            val saved = server.shutdown()
-            println("saved $saved chunks to ${config.worldFile.path}")
-        }
-    )
+    fun shutdownAndReport() {
+        val report = shutdownReported.compareAndSet(false, true)
+        if (report) println("shutting down, saving world")
+        val saved = server.shutdown()
+        if (report) println("saved $saved chunks to ${config.worldFile.path}")
+    }
 
-    coroutineScope {
+    val shutdownHook = Thread(::shutdownAndReport, "optraix-shutdown")
+    Runtime.getRuntime().addShutdownHook(shutdownHook)
+
+    try {
         server.start(this)
-        awaitCancellation()
+        server.awaitStop()
+    } finally {
+        shutdownAndReport()
+        runCatching { Runtime.getRuntime().removeShutdownHook(shutdownHook) }
     }
 }

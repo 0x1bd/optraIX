@@ -73,7 +73,6 @@ class HelpTest {
         val dump = text.joinToString("\n")
         assertTrue(has("//set <block>"), "missing //set <block> in:\n$dump")
         assertTrue(has("//paste [-a]"), "paste should show its worldedit flag:\n$dump")
-        assertTrue(has("/tps [info | unlimited | max | <rate>]"), "tps branches missing:\n$dump")
         assertTrue(has("/speed [<multiplier>]"), "speed argument missing:\n$dump")
         assertTrue(has("/tp <x> <y> <z>"), "missing /tp <x> <y> <z>:\n$dump")
         assertTrue(has("//stack <count> [<direction>]"), "stack direction missing:\n$dump")

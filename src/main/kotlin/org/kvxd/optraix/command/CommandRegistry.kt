@@ -8,6 +8,7 @@ import org.kvxd.optraix.command.server.SaveCommand
 import org.kvxd.optraix.command.server.SidebarCommand
 import org.kvxd.optraix.command.server.SpeedCommand
 import org.kvxd.optraix.command.server.StatsCommand
+import org.kvxd.optraix.command.server.StopCommand
 import org.kvxd.optraix.command.server.TeleportCommand
 import org.kvxd.optraix.command.server.TpsCommand
 import org.kvxd.optraix.command.worldedit.ContractCommand
@@ -52,6 +53,7 @@ class CommandRegistry(private val server: OptraIxServer) {
         StatsCommand(),
         OptraIxCommand(),
         SaveCommand(),
+        StopCommand(),
         TeleportCommand(),
         Pos1Command(worldEdit),
         Pos2Command(worldEdit),
