@@ -27,7 +27,9 @@ class PlayerProfileStore(private val file: File) {
         DataInputStream(GZIPInputStream(file.inputStream().buffered())).use { input ->
             if (input.readInt() != Magic) throw IllegalStateException("${file.name} is not a optraix player file")
             val version = input.readInt()
-            if (version != Version) throw IllegalStateException("unsupported player file version $version")
+            if (version !in MinimumVersion..Version) {
+                throw IllegalStateException("unsupported player file version $version")
+            }
             repeat(input.readInt()) {
                 val name = input.readUTF()
                 val selectedSlot = input.readInt()
@@ -38,6 +40,8 @@ class PlayerProfileStore(private val file: File) {
                 val yaw = input.readFloat()
                 val pitch = input.readFloat()
                 val flying = input.readBoolean()
+                val showSelection = if (version >= 2) input.readBoolean() else true
+                val showSidebar = if (version >= 2) input.readBoolean() else true
                 val inventory = arrayOfNulls<ItemStack>(InventorySize)
                 repeat(input.readInt()) {
                     val slot = input.readInt()
@@ -49,7 +53,8 @@ class PlayerProfileStore(private val file: File) {
                     }
                 }
                 profiles[name] = PlayerProfile(
-                    inventory, selectedSlot, speed, x, y, z, yaw, pitch, flying
+                    inventory, selectedSlot, speed, x, y, z, yaw, pitch, flying,
+                    showSelection, showSidebar,
                 )
             }
         }
@@ -73,6 +78,8 @@ class PlayerProfileStore(private val file: File) {
                 output.writeFloat(profile.yaw)
                 output.writeFloat(profile.pitch)
                 output.writeBoolean(profile.flying)
+                output.writeBoolean(profile.showSelection)
+                output.writeBoolean(profile.showSidebar)
 
                 val filled = profile.inventory.withIndex().filter { it.value != null }
                 output.writeInt(filled.size)
@@ -90,7 +97,8 @@ class PlayerProfileStore(private val file: File) {
 
     companion object {
         private const val Magic = 0x47504C52
-        private const val Version = 1
+        private const val MinimumVersion = 1
+        private const val Version = 2
         const val InventorySize = 46
     }
 }

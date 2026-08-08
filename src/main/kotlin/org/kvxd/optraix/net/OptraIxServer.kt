@@ -558,6 +558,11 @@ class OptraIxServer(val config: ServerConfig) {
 
     private val sidebar = Sidebar()
 
+    fun setSidebarVisible(player: Player, visible: Boolean) {
+        player.showSidebar = visible
+        sidebar.setVisible(player, visible)
+    }
+
     private var lastKeepAlive: Long = 0
     private var lastAutosave: Long = System.currentTimeMillis()
 
@@ -733,7 +738,6 @@ class OptraIxServer(val config: ServerConfig) {
         connection.send(commands.declarePacket)
         sendInventory(player)
 
-        player.y = 1.0
         sendPosition(player)
         connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
         updateChunks(player, force = true)

@@ -27,10 +27,17 @@ class Sidebar(private val title: String = "optraix") {
                 styling = null,
             )
         )
-        player.connection.send(
-            ClientboundScoreboardDisplayObjectivePacket(position = SlotSidebar, name = Objective)
-        )
         for ((index, line) in lines.withIndex()) player.connection.send(scorePacket(index, line))
+        setVisible(player, player.showSidebar)
+    }
+
+    fun setVisible(player: Player, visible: Boolean) {
+        player.connection.send(
+            ClientboundScoreboardDisplayObjectivePacket(
+                position = SlotSidebar,
+                name = if (visible) Objective else "",
+            )
+        )
     }
 
     fun update(players: List<Player>, next: List<Line>) {

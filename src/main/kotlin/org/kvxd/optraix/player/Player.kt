@@ -48,6 +48,7 @@ class Player(
     var selectionTwo: BlockPos? = null
     var clipboard: Clipboard? = null
     var showSelection: Boolean = true
+    var showSidebar: Boolean = true
     val undoStack = ArrayDeque<UndoEntry>()
     val redoStack = ArrayDeque<UndoEntry>()
 

@@ -5,6 +5,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException
 import org.kvxd.optraix.command.server.HelpCommand
 import org.kvxd.optraix.command.server.OptraIxCommand
 import org.kvxd.optraix.command.server.SaveCommand
+import org.kvxd.optraix.command.server.SidebarCommand
 import org.kvxd.optraix.command.server.SpeedCommand
 import org.kvxd.optraix.command.server.StatsCommand
 import org.kvxd.optraix.command.server.TeleportCommand
@@ -46,6 +47,7 @@ class CommandRegistry(private val server: OptraIxServer) {
 
     val commands: List<ServerCommand> = listOf(
         SpeedCommand(),
+        SidebarCommand(),
         TpsCommand(),
         StatsCommand(),
         OptraIxCommand(),

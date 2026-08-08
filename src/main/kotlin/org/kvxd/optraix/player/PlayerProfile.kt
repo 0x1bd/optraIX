@@ -12,6 +12,8 @@ class PlayerProfile(
     val yaw: Float,
     val pitch: Float,
     val flying: Boolean,
+    val showSelection: Boolean,
+    val showSidebar: Boolean,
 ) {
 
     fun applyTo(player: Player) {
@@ -24,6 +26,8 @@ class PlayerProfile(
         player.yaw = yaw
         player.pitch = pitch
         player.flying = flying
+        player.showSelection = showSelection
+        player.showSidebar = showSidebar
     }
 
     companion object {
@@ -38,6 +42,8 @@ class PlayerProfile(
             yaw = player.yaw,
             pitch = player.pitch,
             flying = player.flying,
+            showSelection = player.showSelection,
+            showSidebar = player.showSidebar,
         )
     }
 }
