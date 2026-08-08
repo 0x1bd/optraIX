@@ -9,7 +9,7 @@ import org.kvxd.optraix.world.GameWorld
 class CommandSource(val server: OptraIxServer, val player: Player) {
 
     val world: GameWorld
-        get() = server.world
+        get() = server.worldFor(player)
 
     fun reply(text: String) = player.connection.sendMessage(text)
 

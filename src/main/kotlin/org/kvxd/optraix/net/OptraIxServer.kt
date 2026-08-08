@@ -25,7 +25,10 @@ import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
+import org.kvxd.optraix.world.DefaultWorldName
 import org.kvxd.optraix.world.GameWorld
+import org.kvxd.optraix.world.ManagedWorld
+import org.kvxd.optraix.world.WorldManager
 import org.kvxd.optraix.world.WorldStorage
 import org.kvxd.kmcprotocol.core.ProtocolState
 import org.kvxd.kmcprotocol.generated.Protocols
@@ -92,13 +95,16 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.Clientb
 
 class OptraIxServer(val config: ServerConfig) {
 
-    val world = GameWorld()
+    val worlds = WorldManager(config.worldDirectory)
 
-    var engine: RedstoneEngine = OptraIxEngine()
-        private set
+    val world: GameWorld
+        get() = worlds.default.world
 
-    var interaction = Interaction(engine)
-        private set
+    val engine: RedstoneEngine
+        get() = worlds.default.engine
+
+    val interaction: Interaction
+        get() = worlds.default.interaction
 
     val players = ArrayList<Player>()
 
@@ -125,9 +131,7 @@ class OptraIxServer(val config: ServerConfig) {
         private set
 
     init {
-        world.soundListener = { pos, soundId, category, volume, pitch ->
-            playSound(pos, soundId, category, volume, pitch)
-        }
+        configureWorld(worlds.default)
     }
 
     private val entityIds = AtomicInteger(1)
@@ -138,9 +142,26 @@ class OptraIxServer(val config: ServerConfig) {
         tasks.add(task)
     }
 
+    fun runtimeFor(player: Player): ManagedWorld = worlds.find(player.worldName) ?: worlds.default
+
+    fun worldFor(player: Player): GameWorld = runtimeFor(player).world
+
+    fun engineFor(player: Player): RedstoneEngine = runtimeFor(player).engine
+
+    fun interactionFor(player: Player): Interaction = runtimeFor(player).interaction
+
     fun useEngine(next: RedstoneEngine) {
-        engine = next
-        interaction = Interaction(next)
+        worlds.default.useEngine(next)
+    }
+
+    fun useEngine(player: Player, next: RedstoneEngine) {
+        runtimeFor(player).useEngine(next)
+    }
+
+    private fun configureWorld(runtime: ManagedWorld) {
+        runtime.world.soundListener = { pos, soundId, category, volume, pitch ->
+            playSound(runtime, pos, soundId, category, volume, pitch)
+        }
     }
 
     var boundPort: Int = 0
@@ -163,9 +184,12 @@ class OptraIxServer(val config: ServerConfig) {
         publishScope = scope
 
         runCatching {
-            val restored = WorldStorage.load(world, config.worldFile)
-            if (restored > 0) println("restored $restored chunks from ${config.worldFile.path}")
-        }.onFailure { Log.error("world", "could not load ${config.worldFile.path}", it) }
+            val restored = worlds.loadAll()
+            for (runtime in worlds.all()) configureWorld(runtime)
+            for ((name, chunks) in restored) {
+                if (chunks > 0) println("restored $chunks chunks for world '$name'")
+            }
+        }.onFailure { Log.error("world", "could not load worlds from ${config.worldDirectory.path}", it) }
 
         runCatching {
             val restored = profiles.load()
@@ -178,7 +202,9 @@ class OptraIxServer(val config: ServerConfig) {
         println("optraix listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
 
-        (engine as? OptraIxEngine)?.let { compileRedstone(it) }
+        for (runtime in worlds.all()) {
+            (runtime.engine as? OptraIxEngine)?.let { compileRedstone(runtime, it) }
+        }
 
         startGameLoop()
 
@@ -239,105 +265,117 @@ class OptraIxServer(val config: ServerConfig) {
         runCatching { profiles.save() }
             .onFailure { Log.error("players", "save failed", it) }
 
-        val activeCircuit = (engine as? OptraIxEngine)?.circuit
-        val worldToSave = if (activeCircuit == null) {
-            world
-        } else {
-            world.copyForSave().also { snapshot ->
-                activeCircuit.writeSnapshot(snapshot)
-                activeCircuit.exportPendingTicks(snapshot)
+        var total = 0
+        for (runtime in worlds.all()) {
+            val activeCircuit = (runtime.engine as? OptraIxEngine)?.circuit
+            val worldToSave = if (activeCircuit == null) {
+                runtime.world
+            } else {
+                runtime.world.copyForSave().also { snapshot ->
+                    activeCircuit.writeSnapshot(snapshot)
+                    activeCircuit.exportPendingTicks(snapshot)
+                }
             }
-        }
 
-        return runCatching {
-            WorldStorage.save(worldToSave, config.worldFile)
+            total += runCatching { WorldStorage.save(worldToSave, runtime.file) }
+                .onFailure { Log.error("world", "save failed for '${runtime.name}'", it) }
+                .getOrDefault(0)
         }
-            .onFailure { Log.error("world", "save failed", it) }
-            .getOrDefault(0)
+        return total
     }
 
-    fun compileRedstone(target: OptraIxEngine) {
+    fun compileRedstone(target: OptraIxEngine) = compileRedstone(worlds.default, target)
+
+    fun compileRedstone(player: Player, target: OptraIxEngine) = compileRedstone(runtimeFor(player), target)
+
+    private fun compileRedstone(runtime: ManagedWorld, target: OptraIxEngine) {
         if (target.paused) return
         if (target.manualCompileRequired) return
-        compiling = true
+        runtime.compiling = true
         refreshSidebar(force = true)
-        val ok = target.compile(world)
-        compiling = false
+        val ok = target.compile(runtime.world)
+        runtime.compiling = false
         if (ok) {
             val circuit = target.circuit
-            println("[optraix] compiled ${circuit?.count} nodes, ${circuit?.edgeCount} edges in ${target.compileMillis}ms")
+            println("[optraix:${runtime.name}] compiled ${circuit?.count} nodes, ${circuit?.edgeCount} edges in ${target.compileMillis}ms")
         } else {
-            println("[optraix] compile failed: ${target.lastError} (running interpreted)")
+            println("[optraix:${runtime.name}] compile failed: ${target.lastError} (running interpreted)")
         }
         refreshSidebar(force = true)
     }
 
-    private var compiling = false
-    private var lastEditCounter = 0L
-    private var lastEditAt = 0L
     private var lastSidebar = 0L
-
-    private val plateHeldUntil = HashMap<Long, Long>()
 
     private fun maintainPressurePlates() {
         val now = System.currentTimeMillis()
         for (player in players) {
+            val runtime = runtimeFor(player)
+            val world = runtime.world
             val pos = BlockPos(floor(player.x).toInt(), floor(player.y).toInt(), floor(player.z).toInt())
             if (BlockStates.pressurePlatePowered(world.getBlock(pos)) == null) continue
-            if (plateHeldUntil.put(pos.asLong(), now + PlateReleaseMillis) == null) {
-                engine.setPressurePlate(world, pos, true)
+            if (runtime.plateHeldUntil.put(pos.asLong(), now + PlateReleaseMillis) == null) {
+                runtime.engine.setPressurePlate(world, pos, true)
             }
         }
-        if (plateHeldUntil.isEmpty()) return
-        val iterator = plateHeldUntil.entries.iterator()
-        while (iterator.hasNext()) {
-            val entry = iterator.next()
-            if (entry.value > now) continue
-            iterator.remove()
-            engine.setPressurePlate(world, BlockPos.unpack(entry.key), false)
+        for (runtime in worlds.all()) {
+            if (runtime.plateHeldUntil.isEmpty()) continue
+            val iterator = runtime.plateHeldUntil.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.value > now) continue
+                iterator.remove()
+                runtime.engine.setPressurePlate(runtime.world, BlockPos.unpack(entry.key), false)
+            }
         }
     }
 
     private fun maintainRedstoneCompile() {
-        val optraix = engine as? OptraIxEngine ?: return
-        if (optraix.paused) return
-        if (optraix.manualCompileRequired) return
-        val counter = optraix.changeCounter
         val now = System.currentTimeMillis()
-        if (counter != lastEditCounter) {
-            lastEditCounter = counter
-            lastEditAt = now
-            return
+        for (runtime in worlds.all()) {
+            val optraix = runtime.engine as? OptraIxEngine ?: continue
+            if (optraix.paused || optraix.manualCompileRequired) continue
+            val counter = optraix.changeCounter
+            if (counter != runtime.lastEditCounter) {
+                runtime.lastEditCounter = counter
+                runtime.lastEditAt = now
+                continue
+            }
+            if (runtime.lastEditAt == 0L || optraix.compiled) continue
+            if (now - runtime.lastEditAt < RecompileDelayMillis) continue
+            runtime.lastEditAt = 0L
+            compileRedstone(runtime, optraix)
         }
-        if (lastEditAt == 0L || optraix.compiled) return
-        if (now - lastEditAt < RecompileDelayMillis) return
-        lastEditAt = 0L
-        compileRedstone(optraix)
     }
 
     private fun refreshSidebar(force: Boolean = false) {
         val now = System.currentTimeMillis()
         if (!force && now - lastSidebar < SidebarIntervalMillis) return
         lastSidebar = now
-        val optraix = engine as? OptraIxEngine
-        val circuit = optraix?.circuit
-        val state = when {
-            compiling -> "compiling" to Text.Yellow
-            optraix?.paused == true -> "paused" to Text.Gray
-            circuit != null -> "compiled" to Text.Green
-            optraix?.lastError != null -> "failed" to Text.Red
-            optraix != null -> "interpreted" to Text.Yellow
-            else -> engine.name to Text.Gray
+
+        for (runtime in worlds.all()) {
+            val targets = players.filter { runtimeFor(it) === runtime }
+            if (targets.isEmpty()) continue
+            val optraix = runtime.engine as? OptraIxEngine
+            val circuit = optraix?.circuit
+            val state = when {
+                runtime.compiling -> "compiling" to Text.Yellow
+                optraix?.paused == true -> "paused" to Text.Gray
+                circuit != null -> "compiled" to Text.Green
+                optraix?.lastError != null -> "failed" to Text.Red
+                optraix != null -> "interpreted" to Text.Yellow
+                else -> runtime.engine.name to Text.Gray
+            }
+            val lines = ArrayList<Sidebar.Line>(7)
+            lines += Sidebar.Line("world", "world ", runtime.name, Text.Aqua)
+            lines += Sidebar.Line("tps", "tps ", "%.1f".format(measuredTps), tpsColor())
+            lines += Sidebar.Line("mspt", "mspt ", "%.2f".format(averageMspt), Text.White)
+            lines += Sidebar.Line("redstone", "redstone ", state.first, state.second)
+            if (circuit != null) {
+                lines += Sidebar.Line("nodes", "nodes ", circuit.count.toString(), Text.Aqua)
+                lines += Sidebar.Line("compile", "built ", "${optraix.compileMillis}ms", Text.Aqua)
+            }
+            sidebar.update(targets, lines)
         }
-        val lines = ArrayList<Sidebar.Line>(6)
-        lines += Sidebar.Line("tps", "tps ", "%.1f".format(measuredTps), tpsColor())
-        lines += Sidebar.Line("mspt", "mspt ", "%.2f".format(averageMspt), Text.White)
-        lines += Sidebar.Line("redstone", "redstone ", state.first, state.second)
-        if (circuit != null) {
-            lines += Sidebar.Line("nodes", "nodes ", circuit.count.toString(), Text.Aqua)
-            lines += Sidebar.Line("compile", "built ", "${optraix.compileMillis}ms", Text.Aqua)
-        }
-        sidebar.update(players, lines)
     }
 
     private fun tpsColor(): String {
@@ -366,14 +404,14 @@ class OptraIxServer(val config: ServerConfig) {
                 if (target > 0) {
                     runHousekeeping()
                     if (!running) break
-                    engine.tickWorld(world)
+                    tickWorlds()
                     publishWorldChanges()
                     currentTick++
                     ticksSinceSample++
                 } else {
                     var executed = 0
                     while (executed < batch && running) {
-                        engine.tickWorld(world)
+                        tickWorlds()
                         publishWorldChanges()
                         executed++
                     }
@@ -418,6 +456,10 @@ class OptraIxServer(val config: ServerConfig) {
         thread.isDaemon = true
         tickThread = thread
         thread.start()
+    }
+
+    private fun tickWorlds() {
+        for (runtime in worlds.all()) runtime.engine.tickWorld(runtime.world)
     }
 
     private fun nextBatchSize(current: Int, batchNanos: Long): Int {
@@ -471,15 +513,28 @@ class OptraIxServer(val config: ServerConfig) {
         }
     }
 
+    private data class WorldChangeBatch(
+        val runtime: ManagedWorld,
+        val blocks: LongArray,
+        val states: IntArray,
+        val entityKeys: LongArray,
+        val entities: Array<BlockEntity?>,
+    )
+
     internal fun publishWorldChanges() {
-        if (world.changedBlocks.isEmpty() && world.changedBlockEntities.isEmpty()) {
+        val changed = worlds.all().filter {
+            it.world.changedBlocks.isNotEmpty() || it.world.changedBlockEntities.isNotEmpty()
+        }
+        if (changed.isEmpty()) {
             if (pendingAcks > 0) sendBlockAcks(takeBlockAcks())
             return
         }
         if (players.isEmpty()) {
             pendingAcks = 0
-            world.changedBlocks.clear()
-            world.changedBlockEntities.clear()
+            for (runtime in changed) {
+                runtime.world.changedBlocks.clear()
+                runtime.world.changedBlockEntities.clear()
+            }
             return
         }
         val now = System.nanoTime()
@@ -487,38 +542,62 @@ class OptraIxServer(val config: ServerConfig) {
         if (!publishing.compareAndSet(false, true)) return
         lastPublish = now
         val acks = takeBlockAcks()
+        val batches = ArrayList<WorldChangeBatch>(changed.size)
 
-        val blocks = LongArray(world.changedBlocks.size)
-        val states = IntArray(blocks.size)
-        var index = 0
-        for (packed in world.changedBlocks) {
-            blocks[index] = packed
-            states[index] = world.getBlock(BlockPos.unpack(packed))
-            index++
-        }
-        world.changedBlocks.clear()
+        for (runtime in changed) {
+            val world = runtime.world
+            if (players.none { runtimeFor(it) === runtime }) {
+                world.changedBlocks.clear()
+                world.changedBlockEntities.clear()
+                continue
+            }
 
-        val entityKeys = LongArray(world.changedBlockEntities.size)
-        val entities = arrayOfNulls<BlockEntity>(entityKeys.size)
-        index = 0
-        for (packed in world.changedBlockEntities) {
-            entityKeys[index] = packed
-            entities[index] = world.getBlockEntity(BlockPos.unpack(packed))
-            index++
+            val blocks = LongArray(world.changedBlocks.size)
+            val states = IntArray(blocks.size)
+            var index = 0
+            for (packed in world.changedBlocks) {
+                blocks[index] = packed
+                states[index] = world.getBlock(BlockPos.unpack(packed))
+                index++
+            }
+            world.changedBlocks.clear()
+
+            val entityKeys = LongArray(world.changedBlockEntities.size)
+            val entities = arrayOfNulls<BlockEntity>(entityKeys.size)
+            index = 0
+            for (packed in world.changedBlockEntities) {
+                entityKeys[index] = packed
+                entities[index] = world.getBlockEntity(BlockPos.unpack(packed))
+                index++
+            }
+            world.changedBlockEntities.clear()
+            batches += WorldChangeBatch(runtime, blocks, states, entityKeys, entities)
         }
-        world.changedBlockEntities.clear()
+
+        if (batches.isEmpty()) {
+            sendBlockAcks(acks)
+            publishing.set(false)
+            return
+        }
 
         val scope = publishScope
         if (scope == null) {
-            dispatchPackets(encodeWorldChanges(blocks, states, entityKeys, entities))
+            for (batch in batches) {
+                dispatchPackets(
+                    batch.runtime,
+                    encodeWorldChanges(batch.blocks, batch.states, batch.entityKeys, batch.entities),
+                )
+            }
             sendBlockAcks(acks)
             publishing.set(false)
             return
         }
         scope.launch(Dispatchers.Default) {
-            val packets = encodeWorldChanges(blocks, states, entityKeys, entities)
+            val encoded = batches.map { batch ->
+                batch.runtime to encodeWorldChanges(batch.blocks, batch.states, batch.entityKeys, batch.entities)
+            }
             submit {
-                dispatchPackets(packets)
+                for ((runtime, packets) in encoded) dispatchPackets(runtime, packets)
                 sendBlockAcks(acks)
                 publishing.set(false)
             }
@@ -580,18 +659,35 @@ class OptraIxServer(val config: ServerConfig) {
     private fun chunkKey(chunkX: Int, chunkZ: Int): Long =
         (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
 
-    private fun dispatchPackets(packets: List<Pair<Long, org.kvxd.kmcprotocol.core.MinecraftPacket>>) {
-        for ((chunkKey, packet) in packets) sendToChunk(chunkKey, packet)
+    private fun dispatchPackets(
+        runtime: ManagedWorld,
+        packets: List<Pair<Long, org.kvxd.kmcprotocol.core.MinecraftPacket>>,
+    ) {
+        for ((chunkKey, packet) in packets) sendToChunk(runtime, chunkKey, packet)
     }
 
-    private fun sendToChunk(chunkKey: Long, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
+    private fun sendToChunk(
+        runtime: ManagedWorld,
+        chunkKey: Long,
+        packet: org.kvxd.kmcprotocol.core.MinecraftPacket,
+    ) {
         for (player in players) {
-            if (chunkKey in player.loadedChunks) player.connection.send(packet)
+            if (runtimeFor(player) === runtime && chunkKey in player.loadedChunks) player.connection.send(packet)
         }
     }
 
     fun broadcast(packet: org.kvxd.kmcprotocol.core.MinecraftPacket, except: Player? = null) {
         for (player in players) if (player !== except) player.connection.send(packet)
+    }
+
+    fun broadcastWorld(
+        runtime: ManagedWorld,
+        packet: org.kvxd.kmcprotocol.core.MinecraftPacket,
+        except: Player? = null,
+    ) {
+        for (player in players) {
+            if (player !== except && runtimeFor(player) === runtime) player.connection.send(packet)
+        }
     }
 
     fun broadcastMessage(text: String) {
@@ -647,8 +743,9 @@ class OptraIxServer(val config: ServerConfig) {
                 player.entityId, player.x, player.y, player.z, yaw, angleToByte(player.pitch), player.onGround
             )
             val head = ClientboundEntityHeadRotationPacket(player.entityId, yaw)
-            broadcast(teleport, player)
-            broadcast(head, player)
+            val runtime = runtimeFor(player)
+            broadcastWorld(runtime, teleport, player)
+            broadcastWorld(runtime, head, player)
         }
     }
 
@@ -755,10 +852,71 @@ class OptraIxServer(val config: ServerConfig) {
 
     fun addPlayer(player: Player) {
         profiles[player.name]?.applyTo(player)
+        if (worlds.find(player.worldName) == null) player.worldName = DefaultWorldName
         players.add(player)
         onlineCount = players.size
         sendJoinSequence(player)
         sidebar.install(player)
+        refreshSidebar(force = true)
+    }
+
+    fun createWorld(name: String): ManagedWorld? = worlds.create(name)?.also(::configureWorld)
+
+    fun deleteWorld(name: String): Boolean {
+        val runtime = worlds.find(name) ?: return false
+        if (players.any { runtimeFor(it) === runtime }) return false
+        return worlds.delete(runtime.name)
+    }
+
+    fun joinWorld(player: Player, name: String): Boolean {
+        val target = worlds.find(name) ?: return false
+        val previous = runtimeFor(player)
+        if (previous === target) return true
+
+        val previousPeers = players.filter { it !== player && runtimeFor(it) === previous }
+        val targetPeers = players.filter { it !== player && runtimeFor(it) === target }
+
+        if (previousPeers.isNotEmpty()) {
+            val removePlayer = ClientboundEntityDestroyPacket(listOf(player.entityId))
+            for (peer in previousPeers) peer.connection.send(removePlayer)
+            player.connection.send(ClientboundEntityDestroyPacket(previousPeers.map { it.entityId }))
+        }
+
+        ContainerScreens.close(player)
+        unloadAllChunks(player)
+        if (player.pendingBlockAck >= 0) {
+            player.pendingBlockAck = -1
+            pendingAcks = maxOf(0, pendingAcks - 1)
+        }
+        player.worldName = target.name
+        player.selectionOne = null
+        player.selectionTwo = null
+        player.undoStack.clear()
+        player.redoStack.clear()
+        player.lastChunkX = Int.MIN_VALUE
+        player.lastChunkZ = Int.MIN_VALUE
+        player.moved = false
+
+        sendPosition(player)
+        player.connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
+        updateChunks(player, force = true)
+
+        for (peer in targetPeers) {
+            player.connection.send(spawnPacket(peer))
+            peer.connection.send(spawnPacket(player))
+        }
+        profiles.put(player)
+        refreshSidebar(force = true)
+        return true
+    }
+
+    private fun unloadAllChunks(player: Player) {
+        for (key in player.loadedChunks) {
+            player.connection.send(
+                ClientboundUnloadChunkPacket((key and 0xFFFFFFFFL).toInt(), (key shr 32).toInt())
+            )
+        }
+        player.loadedChunks.clear()
     }
 
     private fun sendJoinSequence(player: Player) {
@@ -796,12 +954,15 @@ class OptraIxServer(val config: ServerConfig) {
         updateChunks(player, force = true)
 
         val addSelf = playerInfoAdd(listOf(player))
+        val runtime = runtimeFor(player)
         for (other in players) {
             other.connection.send(addSelf)
             if (other !== player) {
                 player.connection.send(playerInfoAdd(listOf(other)))
-                player.connection.send(spawnPacket(other))
-                other.connection.send(spawnPacket(player))
+                if (runtimeFor(other) === runtime) {
+                    player.connection.send(spawnPacket(other))
+                    other.connection.send(spawnPacket(player))
+                }
             }
         }
         broadcastMessage("${player.name} joined")
@@ -882,11 +1043,12 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     fun removePlayer(player: Player) {
+        val runtime = runtimeFor(player)
         if (!players.remove(player)) return
         profiles.put(player)
         onlineCount = players.size
         player.connection.close()
-        broadcast(ClientboundEntityDestroyPacket(listOf(player.entityId)))
+        broadcastWorld(runtime, ClientboundEntityDestroyPacket(listOf(player.entityId)))
         broadcast(ClientboundPlayerRemovePacket(listOf(player.uuid)))
         broadcastMessage("${player.name} left")
     }
@@ -925,13 +1087,14 @@ class OptraIxServer(val config: ServerConfig) {
         for (key in toLoad) {
             val cx = (key shr 32).toInt()
             val cz = (key and 0xFFFFFFFFL).toInt()
-            player.connection.send(ChunkPackets.encode(world.chunkAt(cx, cz)))
+            player.connection.send(ChunkPackets.encode(worldFor(player).chunkAt(cx, cz)))
             player.loadedChunks.add(key)
         }
         player.connection.send(ClientboundChunkBatchFinishedPacket(toLoad.size))
     }
 
     fun handlePlayPacket(player: Player, packet: org.kvxd.kmcprotocol.core.MinecraftPacket) {
+        val world = worldFor(player)
         when (packet) {
             is ServerboundPositionPacket -> {
                 player.x = packet.x
@@ -1009,6 +1172,7 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun handleSignUpdate(player: Player, packet: ServerboundUpdateSignPacket) {
+        val world = worldFor(player)
         val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
         val lines = listOf(packet.text1, packet.text2, packet.text3, packet.text4)
         val existing = world.getBlockEntity(pos) as? BlockEntity.Sign
@@ -1036,6 +1200,8 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun handleDig(player: Player, packet: ServerboundBlockDigPacket) {
+        val world = worldFor(player)
+        val interaction = interactionFor(player)
         val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
         if (packet.status == 3 || packet.status == 4) {
             dropHeld(player, wholeStack = packet.status == 4)
@@ -1060,6 +1226,8 @@ class OptraIxServer(val config: ServerConfig) {
 
     private fun handlePlace(player: Player, packet: ServerboundBlockPlacePacket) {
         if (packet.hand != 0) return
+        val world = worldFor(player)
+        val interaction = interactionFor(player)
         val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
         queueBlockAck(player, packet.sequence)
         val held = player.heldItem
@@ -1094,7 +1262,14 @@ class OptraIxServer(val config: ServerConfig) {
         }
     }
 
-    fun playSound(pos: BlockPos, soundId: Int, category: Int, volume: Float, pitch: Float) {
+    private fun playSound(
+        runtime: ManagedWorld,
+        pos: BlockPos,
+        soundId: Int,
+        category: Int,
+        volume: Float,
+        pitch: Float,
+    ) {
         val packet = ClientboundSoundEffectPacket(
             sound = ItemSoundHolder(soundId + 1, null),
             soundCategory = SoundSource.entries.getOrElse(category) { SoundSource.Record },
@@ -1105,7 +1280,7 @@ class OptraIxServer(val config: ServerConfig) {
             pitch = pitch,
             seed = 0L,
         )
-        sendToChunk(chunkKey(pos.x shr 4, pos.z shr 4), packet)
+        sendToChunk(runtime, chunkKey(pos.x shr 4, pos.z shr 4), packet)
     }
 
     companion object {

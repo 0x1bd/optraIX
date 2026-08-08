@@ -24,7 +24,8 @@ class StatsCommand : ServerCommand {
         val usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
         val maxMb = runtime.maxMemory() / (1024 * 1024)
         val uptime = (System.currentTimeMillis() - server.startedAt) / 1000
-        val stats = server.engine.stats
+        val runtimeWorld = server.runtimeFor(source.player)
+        val stats = runtimeWorld.engine.stats
 
         source.heading("optraix")
         source.reply("  uptime:        ${duration(uptime)}")
@@ -34,14 +35,15 @@ class StatsCommand : ServerCommand {
         source.reply("  mspt:          ${format(server.averageMspt)}")
 
         source.heading("redstone")
-        source.reply("  engine:        ${server.engine.name}")
-        source.reply("  pending ticks: ${server.world.scheduledTicks}")
+        source.reply("  engine:        ${runtimeWorld.engine.name}")
+        source.reply("  pending ticks: ${runtimeWorld.world.scheduledTicks}")
         source.reply("  block updates: ${stats.blockUpdates}")
         source.reply("  wire updates:  ${stats.wireUpdates}")
         source.reply("  ticks queued:  ${stats.scheduledTicks}")
 
         source.heading("world")
-        source.reply("  chunks:        ${server.world.loadedChunks}")
+        source.reply("  name:          ${runtimeWorld.name}")
+        source.reply("  chunks:        ${runtimeWorld.world.loadedChunks}")
         source.reply("  profiles:      ${server.profiles.size}")
 
         source.heading("jvm")

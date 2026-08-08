@@ -22,7 +22,7 @@ fun main(args: Array<String>): Unit = runBlocking {
         val report = shutdownReported.compareAndSet(false, true)
         if (report) println("shutting down, saving world")
         val saved = server.shutdown()
-        if (report) println("saved $saved chunks to ${config.worldFile.path}")
+        if (report) println("saved $saved chunks across ${server.worlds.all().size} world(s) in ${config.worldDirectory.path}")
     }
 
     val shutdownHook = Thread(::shutdownAndReport, "optraix-shutdown")

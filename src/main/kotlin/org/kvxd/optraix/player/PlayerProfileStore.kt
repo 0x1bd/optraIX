@@ -2,6 +2,7 @@ package org.kvxd.optraix.player
 
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.world.DefaultWorldName
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -42,6 +43,7 @@ class PlayerProfileStore(private val file: File) {
                 val flying = input.readBoolean()
                 val showSelection = if (version >= 2) input.readBoolean() else true
                 val showSidebar = if (version >= 2) input.readBoolean() else true
+                val worldName = if (version >= 3) input.readUTF() else DefaultWorldName
                 val inventory = arrayOfNulls<ItemStack>(InventorySize)
                 repeat(input.readInt()) {
                     val slot = input.readInt()
@@ -53,7 +55,7 @@ class PlayerProfileStore(private val file: File) {
                     }
                 }
                 profiles[name] = PlayerProfile(
-                    inventory, selectedSlot, speed, x, y, z, yaw, pitch, flying,
+                    inventory, worldName, selectedSlot, speed, x, y, z, yaw, pitch, flying,
                     showSelection, showSidebar,
                 )
             }
@@ -80,6 +82,7 @@ class PlayerProfileStore(private val file: File) {
                 output.writeBoolean(profile.flying)
                 output.writeBoolean(profile.showSelection)
                 output.writeBoolean(profile.showSidebar)
+                output.writeUTF(profile.worldName)
 
                 val filled = profile.inventory.withIndex().filter { it.value != null }
                 output.writeInt(filled.size)
@@ -98,7 +101,7 @@ class PlayerProfileStore(private val file: File) {
     companion object {
         private const val Magic = 0x47504C52
         private const val MinimumVersion = 1
-        private const val Version = 2
+        private const val Version = 3
         const val InventorySize = 46
     }
 }

@@ -3,6 +3,7 @@ package org.kvxd.optraix.player
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.net.PacketSink
 import org.kvxd.optraix.world.BlockPos
+import org.kvxd.optraix.world.DefaultWorldName
 import org.kvxd.optraix.worldedit.Clipboard
 import org.kvxd.optraix.worldedit.UndoEntry
 import java.util.ArrayDeque
@@ -17,6 +18,8 @@ class Player(
     val name: String,
     val connection: PacketSink,
 ) {
+
+    var worldName: String = DefaultWorldName
 
     var x: Double = 0.5
     var y: Double = 1.0

@@ -29,7 +29,7 @@ class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
         }
         val changed = worldEdit.paste(source.player, clipboard, includeAir)
         source.success("pasted $changed blocks")
-        val engine = source.server.engine as? OptraIxEngine
+        val engine = source.server.engineFor(source.player) as? OptraIxEngine
         if (engine?.manualCompileRequired == true) {
             source.reply("automatic compilation skipped for this bulk paste; run /optraix compile when ready")
         }

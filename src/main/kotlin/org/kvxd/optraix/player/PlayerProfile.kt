@@ -4,6 +4,7 @@ import org.kvxd.optraix.block.ItemStack
 
 class PlayerProfile(
     val inventory: Array<ItemStack?>,
+    val worldName: String,
     val selectedSlot: Int,
     val speedMultiplier: Float,
     val x: Double,
@@ -18,6 +19,7 @@ class PlayerProfile(
 
     fun applyTo(player: Player) {
         inventory.copyInto(player.inventory)
+        player.worldName = worldName
         player.selectedSlot = selectedSlot
         player.speedMultiplier = speedMultiplier
         player.x = x
@@ -34,6 +36,7 @@ class PlayerProfile(
 
         fun of(player: Player): PlayerProfile = PlayerProfile(
             inventory = player.inventory.copyOf(),
+            worldName = player.worldName,
             selectedSlot = player.selectedSlot,
             speedMultiplier = player.speedMultiplier,
             x = player.x,

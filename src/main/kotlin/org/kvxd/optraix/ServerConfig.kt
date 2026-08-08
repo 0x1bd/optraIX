@@ -14,7 +14,9 @@ class ServerConfig(
     val autosaveSeconds: Int = 300,
 ) {
 
-    val worldFile: File = File(runDirectory, "world/optraix.world")
+    val worldDirectory: File = File(runDirectory, "world")
+
+    val worldFile: File = File(worldDirectory, "optraix.world")
 
     val playerFile: File = File(runDirectory, "players.dat")
 
@@ -23,7 +25,7 @@ class ServerConfig(
     fun prepareDirectories() {
         runDirectory.mkdirs()
         schematicsDirectory.mkdirs()
-        worldFile.parentFile?.mkdirs()
+        worldDirectory.mkdirs()
     }
 
     companion object {

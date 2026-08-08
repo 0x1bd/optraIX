@@ -27,10 +27,10 @@ class OptraIxCommand : ServerCommand {
 
     private fun engineOf(source: CommandSource): OptraIxEngine {
         val server = source.server
-        val existing = server.engine
+        val existing = server.engineFor(source.player)
         if (existing is OptraIxEngine) return existing
         val engine = OptraIxEngine()
-        server.useEngine(engine)
+        server.useEngine(source.player, engine)
         return engine
     }
 
@@ -39,7 +39,7 @@ class OptraIxCommand : ServerCommand {
         val server = source.server
         source.reply("compiling...")
         server.submit {
-            if (engine.compile(server.world)) {
+            if (engine.compile(source.world)) {
                 val circuit = engine.circuit ?: return@submit
                 source.success("compile finished (${engine.compileMillis}ms)")
                 source.reply("  nodes:   ${circuit.count}")
@@ -54,7 +54,7 @@ class OptraIxCommand : ServerCommand {
     private fun pause(source: CommandSource) {
         val server = source.server
         server.submit {
-            val engine = server.engine
+            val engine = server.engineFor(source.player)
             if (engine !is OptraIxEngine) {
                 source.reply("optraix is not the active engine")
                 return@submit
@@ -63,7 +63,7 @@ class OptraIxCommand : ServerCommand {
                 source.reply("optraix is already paused")
                 return@submit
             }
-            engine.pause(server.world)
+            engine.pause(source.world)
             source.success("optraix paused, running interpreted until /optraix resume")
         }
     }
@@ -81,7 +81,7 @@ class OptraIxCommand : ServerCommand {
                 source.reply("bulk edits require an explicit /optraix compile")
                 return@submit
             }
-            server.compileRedstone(engine)
+            server.compileRedstone(source.player, engine)
             if (engine.compiled) {
                 source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
             } else {
@@ -92,7 +92,7 @@ class OptraIxCommand : ServerCommand {
 
     private fun status(source: CommandSource) {
         val server = source.server
-        val engine = server.engine
+        val engine = server.engineFor(source.player)
         source.heading("optraix")
         source.reply("  engine:   ${engine.name}")
         if (engine !is OptraIxEngine) {

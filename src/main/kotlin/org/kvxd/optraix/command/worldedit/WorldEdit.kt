@@ -37,33 +37,34 @@ class WorldEdit(private val server: OptraIxServer) {
     }
 
     fun apply(player: Player, region: Region, mutator: (BlockPos) -> Int?): Int {
+        val world = server.worldFor(player)
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         var changed = 0
         region.forEach { pos ->
             val next = mutator(pos) ?: return@forEach
-            val current = server.world.getBlock(pos)
+            val current = world.getBlock(pos)
             if (current == next) return@forEach
             positions.add(pos.asLong())
             previous.add(current)
-            server.world.setBlockSilent(pos, next)
+            world.setBlockSilent(pos, next)
             changed++
         }
         if (changed > 0) {
             player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-            refresh(positions)
-            resend(region.min, region.max)
+            refresh(player, positions)
+            resend(player, region.min, region.max)
         }
         return changed
     }
 
-    fun refresh(positions: Collection<Long>) {
+    private fun refresh(player: Player, positions: Collection<Long>) {
         if (positions.isEmpty()) return
         if (positions.size > MaxRefreshedBlocks) return
 
-        val interaction = server.interaction
-        val engine = server.engine
-        val world = server.world
+        val interaction = server.interactionFor(player)
+        val engine = server.engineFor(player)
+        val world = server.worldFor(player)
 
         for (packed in positions) {
             interaction.changeSurroundingBlocks(world, BlockPos.unpack(packed))
@@ -76,17 +77,13 @@ class WorldEdit(private val server: OptraIxServer) {
         }
     }
 
-    fun refresh(positions: LongArray) {
-        refresh(positions, positions.size)
-    }
-
-    private fun refresh(positions: LongArray, size: Int) {
+    private fun refresh(player: Player, positions: LongArray, size: Int) {
         if (size == 0) return
         if (size > MaxRefreshedBlocks) return
 
-        val interaction = server.interaction
-        val engine = server.engine
-        val world = server.world
+        val interaction = server.interactionFor(player)
+        val engine = server.engineFor(player)
+        val world = server.worldFor(player)
 
         for (index in 0 until size) {
             val packed = positions[index]
@@ -101,19 +98,24 @@ class WorldEdit(private val server: OptraIxServer) {
         }
     }
 
-    fun resend(min: BlockPos, max: BlockPos) {
+    private fun resend(player: Player, min: BlockPos, max: BlockPos) {
+        val runtime = server.runtimeFor(player)
+        val world = runtime.world
         for (chunkX in (min.x shr 4)..(max.x shr 4)) {
             for (chunkZ in (min.z shr 4)..(max.z shr 4)) {
                 val key = (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
-                val packet = ChunkPackets.encode(server.world.chunkAt(chunkX, chunkZ))
+                val packet = ChunkPackets.encode(world.chunkAt(chunkX, chunkZ))
                 for (target in server.players) {
-                    if (key in target.loadedChunks) target.connection.send(packet)
+                    if (server.runtimeFor(target) === runtime && key in target.loadedChunks) {
+                        target.connection.send(packet)
+                    }
                 }
             }
         }
     }
 
     fun copy(player: Player, region: Region): Clipboard {
+        val world = server.worldFor(player)
         val origin = player.blockPos
         val clipboard = Clipboard(
             sizeX = region.sizeX,
@@ -126,8 +128,8 @@ class WorldEdit(private val server: OptraIxServer) {
             for (z in 0 until region.sizeZ) {
                 for (x in 0 until region.sizeX) {
                     val pos = BlockPos(region.min.x + x, region.min.y + y, region.min.z + z)
-                    clipboard[x, y, z] = server.world.getBlock(pos)
-                    server.world.getBlockEntity(pos)?.let {
+                    clipboard[x, y, z] = world.getBlock(pos)
+                    world.getBlockEntity(pos)?.let {
                         clipboard.blockEntities[clipboard.index(x, y, z)] = it
                     }
                 }
@@ -138,6 +140,7 @@ class WorldEdit(private val server: OptraIxServer) {
     }
 
     fun paste(player: Player, clipboard: Clipboard, includeAir: Boolean): Int {
+        val world = server.worldFor(player)
         val origin = player.blockPos
         val base = BlockPos(
             origin.x + clipboard.offset.x,
@@ -149,8 +152,8 @@ class WorldEdit(private val server: OptraIxServer) {
         val changedChunks = HashSet<Long>()
         var changed = 0
         if (maximumChanges > 0) {
-            (server.engine as? OptraIxEngine)?.worldEdited(
-                server.world,
+            (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
+                world,
                 requireManualCompile = maximumChanges > MaxAutomaticCompileBlocks,
             )
         }
@@ -160,9 +163,9 @@ class WorldEdit(private val server: OptraIxServer) {
             val z = (index / clipboard.sizeX) % clipboard.sizeZ
             val y = index / (clipboard.sizeX * clipboard.sizeZ)
             val pos = BlockPos(base.x + x, base.y + y, base.z + z)
-            val current = server.world.getBlock(pos)
+            val current = world.getBlock(pos)
             if (current == state) return
-            if (!server.world.setBlockSilent(pos, state)) return
+            if (!world.setBlockSilent(pos, state)) return
             undo?.add(pos.asLong(), current)
             changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
             changed++
@@ -184,20 +187,21 @@ class WorldEdit(private val server: OptraIxServer) {
             val x = index % clipboard.sizeX
             val z = (index / clipboard.sizeX) % clipboard.sizeZ
             val y = index / (clipboard.sizeX * clipboard.sizeZ)
-            server.world.setBlockEntity(BlockPos(base.x + x, base.y + y, base.z + z), entity)
+            world.setBlockEntity(BlockPos(base.x + x, base.y + y, base.z + z), entity)
         }
 
         if (changed > 0) {
             undo?.build()?.let { entry ->
                 player.pushUndo(entry)
-                refresh(entry.positions, entry.size)
+                refresh(player, entry.positions, entry.size)
             }
-            resendChunks(changedChunks)
+            resendChunks(player, changedChunks)
         }
         return changed
     }
 
     fun stack(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
+        val world = server.worldFor(player)
         val step = regionOffset(facing, region)
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
@@ -205,57 +209,58 @@ class WorldEdit(private val server: OptraIxServer) {
         for (iteration in 1..count) {
             val shift = BlockPos(step.x * iteration, step.y * iteration, step.z * iteration)
             region.forEach { pos ->
-                val state = server.world.getBlock(pos)
+                val state = world.getBlock(pos)
                 val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
-                val current = server.world.getBlock(target)
+                val current = world.getBlock(target)
                 if (current != state) {
                     positions.add(target.asLong())
                     previous.add(current)
-                    server.world.setBlockSilent(target, state)
+                    world.setBlockSilent(target, state)
                     changed++
                 }
-                server.world.getBlockEntity(pos)?.let { server.world.setBlockEntity(target, it) }
+                world.getBlockEntity(pos)?.let { world.setBlockEntity(target, it) }
             }
         }
         if (changed > 0) {
             player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-            refresh(positions)
-            resendSpan(region, BlockPos(step.x * count, step.y * count, step.z * count))
+            refresh(player, positions)
+            resendSpan(player, region, BlockPos(step.x * count, step.y * count, step.z * count))
         }
         return changed
     }
 
     fun move(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
+        val world = server.worldFor(player)
         val step = unitOffset(facing)
         val shift = BlockPos(step.x * count, step.y * count, step.z * count)
         val snapshot = HashMap<Long, Int>()
-        region.forEach { pos -> snapshot[pos.asLong()] = server.world.getBlock(pos) }
+        region.forEach { pos -> snapshot[pos.asLong()] = world.getBlock(pos) }
 
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         val air = Blocks.airState
 
         region.forEach { pos ->
-            val current = server.world.getBlock(pos)
+            val current = world.getBlock(pos)
             if (current != air) {
                 positions.add(pos.asLong())
                 previous.add(current)
-                server.world.setBlockSilent(pos, air)
+                world.setBlockSilent(pos, air)
             }
         }
         for ((packed, state) in snapshot) {
             val pos = BlockPos.unpack(packed)
             val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
-            val current = server.world.getBlock(target)
+            val current = world.getBlock(target)
             if (current != state) {
                 positions.add(target.asLong())
                 previous.add(current)
-                server.world.setBlockSilent(target, state)
+                world.setBlockSilent(target, state)
             }
         }
         player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-        refresh(positions)
-        resendSpan(region, shift)
+        refresh(player, positions)
+        resendSpan(player, region, shift)
 
         player.selectionOne = BlockPos(region.min.x + shift.x, region.min.y + shift.y, region.min.z + shift.z)
         player.selectionTwo = BlockPos(region.max.x + shift.x, region.max.y + shift.y, region.max.z + shift.z)
@@ -264,33 +269,35 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun undo(player: Player): Int? {
         val entry = player.undoStack.poll() ?: return null
-        player.redoStack.push(swap(entry))
+        player.redoStack.push(swap(player, entry))
         return entry.size
     }
 
     fun redo(player: Player): Int? {
         val entry = player.redoStack.poll() ?: return null
-        player.undoStack.push(swap(entry))
+        player.undoStack.push(swap(player, entry))
         return entry.size
     }
 
-    private fun swap(entry: UndoEntry): UndoEntry {
+    private fun swap(player: Player, entry: UndoEntry): UndoEntry {
+        val world = server.worldFor(player)
         val replaced = IntArray(entry.positions.size)
         if (entry.size == 0) return UndoEntry(entry.positions, replaced, 0)
         val changedChunks = HashSet<Long>()
         for (index in 0 until entry.size) {
             val pos = BlockPos.unpack(entry.positions[index])
-            replaced[index] = server.world.getBlock(pos)
-            server.world.setBlockSilent(pos, entry.states[index])
+            replaced[index] = world.getBlock(pos)
+            world.setBlockSilent(pos, entry.states[index])
             changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
         }
-        refresh(entry.positions, entry.size)
-        resendChunks(changedChunks)
+        refresh(player, entry.positions, entry.size)
+        resendChunks(player, changedChunks)
         return UndoEntry(entry.positions, replaced, entry.size)
     }
 
-    private fun resendSpan(region: Region, shift: BlockPos) {
+    private fun resendSpan(player: Player, region: Region, shift: BlockPos) {
         resend(
+            player,
             BlockPos(
                 minOf(region.min.x, region.min.x + shift.x),
                 minOf(region.min.y, region.min.y + shift.y),
@@ -321,11 +328,15 @@ class WorldEdit(private val server: OptraIxServer) {
         fun chunkKey(x: Int, z: Int): Long = (x.toLong() shl 32) or (z.toLong() and 0xFFFFFFFFL)
     }
 
-    private fun resendChunks(chunks: Collection<Long>) {
+    private fun resendChunks(player: Player, chunks: Collection<Long>) {
+        val runtime = server.runtimeFor(player)
+        val world = runtime.world
         for (key in chunks) {
-            val targets = server.players.filter { key in it.loadedChunks }
+            val targets = server.players.filter {
+                server.runtimeFor(it) === runtime && key in it.loadedChunks
+            }
             if (targets.isEmpty()) continue
-            val packet = ChunkPackets.encode(server.world.chunkAt((key shr 32).toInt(), key.toInt()))
+            val packet = ChunkPackets.encode(world.chunkAt((key shr 32).toInt(), key.toInt()))
             for (target in targets) target.connection.send(packet)
         }
     }
