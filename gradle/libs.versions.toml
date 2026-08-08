@@ -1,12 +1,16 @@
 [versions]
 java = "25"
 kotlin = "2.4.10"
-kmcprotocol = "0.2.0"
+kmcprotocol = "0.2.2"
 mcstructs = "3.3.1"
 brigadier = "1.3.10"
 coroutines = "1.11.0"
 serialization = "1.11.0"
 graalvm-native = "1.1.5"
+viaversion = "5.11.0"
+netty = "4.0.20.Final"
+guava = "17.0"
+gson = "2.14.0"
 
 [libraries]
 kmcprotocol-extensions = { module = "org.kvxd:kmcprotocol-extensions", version.ref = "kmcprotocol" }
@@ -14,6 +18,10 @@ mcstructs-nbt = { module = "net.lenni0451.mcstructs:nbt", version.ref = "mcstruc
 brigadier = { module = "com.mojang:brigadier", version.ref = "brigadier" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+viaversion-common = { module = "com.viaversion:viaversion-common", version.ref = "viaversion" }
+netty-all = { module = "io.netty:netty-all", version.ref = "netty" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

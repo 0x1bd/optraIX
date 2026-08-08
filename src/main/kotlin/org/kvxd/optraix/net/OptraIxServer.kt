@@ -169,6 +169,8 @@ class OptraIxServer(val config: ServerConfig) {
 
     private var socket: Server? = null
 
+    private var viaVersionRuntime: ViaVersionRuntime? = null
+
     private var tickThread: Thread? = null
 
     private var networkJob: Job? = null
@@ -196,10 +198,17 @@ class OptraIxServer(val config: ServerConfig) {
             if (restored > 0) println("restored $restored player profiles")
         }.onFailure { Log.error("players", "could not load ${config.playerFile.path}", it) }
 
-        val server = Server.bind(InetSocketAddress(config.host, config.port)) { protocol.protocolData() }
+        val viaVersion = if (config.viaversion) ViaVersionRuntime.start() else null
+        viaVersionRuntime = viaVersion
+        val middlewares = viaVersion?.let { listOf(it.middleware) }.orEmpty()
+        val server = Server.bind(
+            address = InetSocketAddress(config.host, config.port),
+            middlewares = middlewares,
+        ) { protocol.protocolData() }
         socket = server
         boundPort = (server.localAddress as? InetSocketAddress)?.port ?: config.port
         println("optraix listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
+        if (viaVersion != null) println("ViaVersion ${ViaVersionRuntime.Version}: enabled")
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
 
         for (runtime in worlds.all()) {
@@ -239,6 +248,8 @@ class OptraIxServer(val config: ServerConfig) {
             disconnectPlayers()
             runCatching { socket?.close() }
             networkJob?.cancel()
+            runCatching { viaVersionRuntime?.close() }
+            viaVersionRuntime = null
 
             val saved = saveWorld()
             shutdownResult = saved

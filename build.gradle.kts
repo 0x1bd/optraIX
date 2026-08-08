@@ -11,6 +11,7 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenLocal()
+    maven("https://repo.viaversion.com")
     mavenCentral()
     maven("https://libraries.minecraft.net")
 }
@@ -23,6 +24,11 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.brigadier)
+
+    implementation(libs.viaversion.common)
+    implementation(libs.netty.all)
+    implementation(libs.guava)
+    implementation(libs.gson)
 
     testImplementation(kotlin("test"))
 }
@@ -47,6 +53,7 @@ graalvmNative {
             mainClass.set("org.kvxd.optraix.MainKt")
             buildArgs.add("-O2")
             buildArgs.add("-march=compatibility")
+            buildArgs.add("-H:IncludeResources=assets/viaversion/.*")
         }
     }
     metadataRepository {
