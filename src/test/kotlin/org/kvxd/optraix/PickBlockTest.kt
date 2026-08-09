@@ -11,6 +11,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.Clientbou
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPickItemPacket
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.minecraftName
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.world.BlockPos
@@ -32,7 +33,7 @@ class PickBlockTest {
         server.world.setBlockSilent(pos, Blocks.RedstoneWire.defaultState)
         server.pickItemFromBlock(player.uuid, pos, false)
 
-        assertEquals("minecraft:redstone", player.heldItem?.item?.name)
+        assertEquals("minecraft:redstone", player.heldItem?.item?.minecraftName)
         assertEquals(0, player.selectedSlot)
         assertEquals(1, sink.countOf<ClientboundWindowItemsPacket>())
         assertEquals(1, sink.countOf<ClientboundHeldItemSlotPacket>())
@@ -57,7 +58,7 @@ class PickBlockTest {
         server.pickItemFromBlock(player.uuid, pos, false)
 
         assertEquals(4, player.selectedSlot)
-        assertEquals("minecraft:sandstone", player.heldItem?.item?.name)
+        assertEquals("minecraft:sandstone", player.heldItem?.item?.minecraftName)
         assertEquals(0, sink.countOf<ClientboundWindowItemsPacket>())
         assertEquals(1, sink.countOf<ClientboundHeldItemSlotPacket>())
     }
@@ -73,7 +74,7 @@ class PickBlockTest {
 
         server.handlePlayPacket(player, ServerboundPickItemPacket(10))
 
-        assertEquals("minecraft:sandstone", player.inventory[36]?.item?.name)
+        assertEquals("minecraft:sandstone", player.inventory[36]?.item?.minecraftName)
         assertEquals(null, player.inventory[10])
         assertEquals(0, player.selectedSlot)
         assertEquals(1, sink.countOf<ClientboundWindowItemsPacket>())

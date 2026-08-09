@@ -13,6 +13,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.LeverFace
+import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.block.property.isNone
 
 class OptraIxTargetTest {
 

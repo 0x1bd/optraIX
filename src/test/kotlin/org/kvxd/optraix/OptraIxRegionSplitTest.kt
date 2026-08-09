@@ -2,6 +2,9 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.bench.BenchCircuit
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.LeverFace
+import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler

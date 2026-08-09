@@ -1,6 +1,7 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine

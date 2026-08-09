@@ -2,6 +2,7 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.minecraftName
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.player.PlayerProfileStore
 import java.io.DataOutputStream
@@ -62,7 +63,7 @@ class PlayerProfileStoreTest {
         assertEquals(original.selectedSlot, restored.selectedSlot)
         assertFalse(restored.showSelection)
         assertFalse(restored.showSidebar)
-        assertEquals("minecraft:redstone", restored.inventory[36]?.item?.name)
+        assertEquals("minecraft:redstone", restored.inventory[36]?.item?.minecraftName)
         assertEquals(42, restored.inventory[36]?.count)
     }
 
