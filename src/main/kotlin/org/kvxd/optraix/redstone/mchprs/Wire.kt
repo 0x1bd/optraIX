@@ -1,10 +1,14 @@
 package org.kvxd.optraix.redstone.mchprs
 
-import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.blockFacing
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.block.property.isNone
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.World
 
@@ -79,27 +83,27 @@ object Wire {
     fun canConnectTo(state: Int, side: BlockDirection): Boolean {
         if (BlockStates.pressurePlatePowered(state) != null) return true
 
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneWire,
-            BlockKind.Comparator,
-            BlockKind.RedstoneTorch,
-            BlockKind.RedstoneBlock,
-            BlockKind.RedstoneWallTorch,
-            BlockKind.TripwireHook,
-            BlockKind.Button,
-            BlockKind.Target,
-            BlockKind.Lever -> true
-            BlockKind.Repeater -> {
+        if (BlockStates.isButton(state)) return true
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneWire,
+            Blocks.Comparator,
+            Blocks.RedstoneTorch,
+            Blocks.RedstoneBlock,
+            Blocks.RedstoneWallTorch,
+            Blocks.TripwireHook,
+            Blocks.Target,
+            Blocks.Lever -> true
+            Blocks.Repeater -> {
                 val facing = BlockStates.directionOf(state)
                 facing == side || facing == side.opposite()
             }
-            BlockKind.Observer -> BlockStates.facingOf(state) == side.blockFacing()
+            Blocks.Observer -> BlockStates.facingOf(state) == side.blockFacing()
             else -> false
         }
     }
 
     private fun canConnectDiagonalTo(state: Int): Boolean =
-        BlockStates.kindOf(state) == BlockKind.RedstoneWire
+        BlockStates.isType(state, Blocks.RedstoneWire)
 
     fun getCurrentSide(state: Int, side: BlockDirection): WireSide = when (side) {
         BlockDirection.North -> north(state)
@@ -171,7 +175,7 @@ object Wire {
 
     private fun maxWirePower(wirePower: Int, world: World, pos: BlockPos): Int {
         val state = world.getBlock(pos)
-        return if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
+        return if (BlockStates.isType(state, Blocks.RedstoneWire)) {
             maxOf(wirePower, power(state))
         } else {
             wirePower

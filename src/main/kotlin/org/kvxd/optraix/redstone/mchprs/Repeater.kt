@@ -1,8 +1,12 @@
 package org.kvxd.optraix.redstone.mchprs
 
-import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
+import org.kvxd.optraix.block.property.rotate
+import org.kvxd.optraix.block.property.rotateCcw
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World

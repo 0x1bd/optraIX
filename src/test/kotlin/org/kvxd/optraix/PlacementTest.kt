@@ -2,7 +2,8 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.ItemStack
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.isBlock
+import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.interaction.UseOnBlockContext
@@ -13,14 +14,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
-import org.kvxd.optraix.block.mcData
 
 class PlacementTest {
 
     private val interaction = Interaction(MchprsRedstone)
 
     private fun place(world: GameWorld, itemName: String, target: BlockPos): Int {
-        val item = requireNotNull(Items.byName(itemName)) { "$itemName is not a known item" }
+        val item = requireNotNull(mcData.item(itemName)) { "$itemName is not a known item" }
         assertTrue(item.isBlock, "$itemName is not placeable")
 
         val context = UseOnBlockContext(

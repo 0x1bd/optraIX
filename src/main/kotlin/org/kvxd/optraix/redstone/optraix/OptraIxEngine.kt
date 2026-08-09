@@ -1,8 +1,8 @@
 package org.kvxd.optraix.redstone.optraix
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
@@ -91,7 +91,7 @@ class OptraIxEngine : RedstoneEngine {
                 val section = chunk.sections[sectionIndex] ?: continue
                 if (section.blockCount == 0 || !sectionHasCandidates(section)) continue
                 section.forEachState { slot, state ->
-                    if (BlockStates.kindOf(state) != BlockKind.RedstoneWire) return@forEachState
+                    if (!BlockStates.isType(state, Blocks.RedstoneWire)) return@forEachState
                     wires.add(
                         BlockPos.pack(
                             chunk.x * 16 + (slot and 15),
@@ -108,7 +108,7 @@ class OptraIxEngine : RedstoneEngine {
             for (index in 0 until wires.size) {
                 val pos = BlockPos.unpack(wires[index])
                 val state = world.getBlock(pos)
-                if (BlockStates.kindOf(state) != BlockKind.RedstoneWire) continue
+                if (!BlockStates.isType(state, Blocks.RedstoneWire)) continue
                 val power = Wire.calculatePower(world, pos)
                 if (BlockStates.wirePower[state].toInt() == power) continue
                 world.setBlock(pos, BlockStates.wireWithPower(state, power))
@@ -172,9 +172,8 @@ class OptraIxEngine : RedstoneEngine {
         return MchprsRedstone.onUse(world, pos)
     }
 
-    private fun mutatesRedstone(state: Int): Boolean = when (BlockStates.kindOf(state)) {
-        BlockKind.Repeater, BlockKind.Comparator, BlockKind.Lever,
-        BlockKind.Button, BlockKind.RedstoneWire, BlockKind.NoteBlock -> true
+    private fun mutatesRedstone(state: Int): Boolean = BlockStates.isButton(state) || when (BlockStates.typeOf(state)) {
+        Blocks.Repeater, Blocks.Comparator, Blocks.Lever, Blocks.RedstoneWire, Blocks.NoteBlock -> true
         else -> false
     }
 

@@ -1,11 +1,11 @@
 package org.kvxd.optraix.redstone.optraix
 
-import org.kvxd.optraix.block.BlockKind
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
+import org.kvxd.optraix.block.property.rotate
+import org.kvxd.optraix.block.property.rotateCcw
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.property.ComparatorMode
-import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.redstone.mchprs.Comparator
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
@@ -18,17 +18,21 @@ import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.World
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.ComparatorMode
+import org.kvxd.optraix.block.property.LeverFace
+import org.kvxd.optraix.block.property.isNone
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxCompileException(message: String) : RuntimeException(message)
 
 internal fun isComponentCandidate(state: Int): Boolean {
-    if (BlockStates.pressurePlatePowered(state) != null) return true
-    return when (BlockStates.kindOf(state)) {
-        BlockKind.RedstoneWire, BlockKind.Repeater, BlockKind.Comparator,
-        BlockKind.RedstoneTorch, BlockKind.RedstoneWallTorch, BlockKind.RedstoneLamp,
-        BlockKind.Lever, BlockKind.Button, BlockKind.RedstoneBlock,
-        BlockKind.IronTrapdoor, BlockKind.NoteBlock,
-        BlockKind.Observer, BlockKind.TripwireHook -> true
+    if (BlockStates.pressurePlatePowered(state) != null || BlockStates.isButton(state)) return true
+    return when (BlockStates.typeOf(state)) {
+        Blocks.RedstoneWire, Blocks.Repeater, Blocks.Comparator,
+        Blocks.RedstoneTorch, Blocks.RedstoneWallTorch, Blocks.RedstoneLamp,
+        Blocks.Lever, Blocks.RedstoneBlock, Blocks.IronTrapdoor, Blocks.NoteBlock,
+        Blocks.Observer, Blocks.TripwireHook -> true
         else -> false
     }
 }
@@ -126,19 +130,19 @@ object OptraIxCompiler {
 
     private fun typeOf(state: Int): Int {
         if (BlockStates.pressurePlatePowered(state) != null) return NodeType.PressurePlate
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneWire -> NodeType.Wire
-            BlockKind.Repeater -> NodeType.Repeater
-            BlockKind.Comparator -> NodeType.Comparator
-            BlockKind.RedstoneTorch -> NodeType.Torch
-            BlockKind.RedstoneWallTorch -> NodeType.WallTorch
-            BlockKind.RedstoneLamp -> NodeType.Lamp
-            BlockKind.Lever -> NodeType.Lever
-            BlockKind.Button -> NodeType.Button
-            BlockKind.RedstoneBlock -> NodeType.Constant
-            BlockKind.IronTrapdoor -> NodeType.Trapdoor
-            BlockKind.NoteBlock -> NodeType.NoteBlock
-            BlockKind.Observer, BlockKind.TripwireHook ->
+        if (BlockStates.isButton(state)) return NodeType.Button
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneWire -> NodeType.Wire
+            Blocks.Repeater -> NodeType.Repeater
+            Blocks.Comparator -> NodeType.Comparator
+            Blocks.RedstoneTorch -> NodeType.Torch
+            Blocks.RedstoneWallTorch -> NodeType.WallTorch
+            Blocks.RedstoneLamp -> NodeType.Lamp
+            Blocks.Lever -> NodeType.Lever
+            Blocks.RedstoneBlock -> NodeType.Constant
+            Blocks.IronTrapdoor -> NodeType.Trapdoor
+            Blocks.NoteBlock -> NodeType.NoteBlock
+            Blocks.Observer, Blocks.TripwireHook ->
                 throw OptraIxCompileException("${mcData.requireBlockByStateId(state).name} is not supported by optraix")
             else -> -1
         }
@@ -223,17 +227,17 @@ object OptraIxCompiler {
     }
 
     private fun emitsWeak(world: World, state: Int, pos: BlockPos, side: BlockFace, dustPower: Boolean): Boolean {
-        if (BlockStates.pressurePlatePowered(state) != null) return true
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneTorch -> side != BlockFace.Top
-            BlockKind.RedstoneWallTorch -> {
+        if (BlockStates.pressurePlatePowered(state) != null || BlockStates.isButton(state)) return true
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneTorch -> side != BlockFace.Top
+            Blocks.RedstoneWallTorch -> {
                 val facing = BlockStates.directionOf(state)
                 facing != null && facing.blockFace() != side
             }
-            BlockKind.RedstoneBlock, BlockKind.Lever, BlockKind.Button -> true
-            BlockKind.Repeater, BlockKind.Comparator ->
+            Blocks.RedstoneBlock, Blocks.Lever -> true
+            Blocks.Repeater, Blocks.Comparator ->
                 BlockStates.directionOf(state)?.blockFace() == side
-            BlockKind.RedstoneWire -> when {
+            Blocks.RedstoneWire -> when {
                 !dustPower -> false
                 side == BlockFace.Top -> true
                 side == BlockFace.Bottom -> false
@@ -249,9 +253,18 @@ object OptraIxCompiler {
 
     private fun emitsStrong(world: World, state: Int, pos: BlockPos, side: BlockFace, dustPower: Boolean): Boolean {
         if (BlockStates.pressurePlatePowered(state) != null) return side == BlockFace.Top
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneTorch, BlockKind.RedstoneWallTorch -> side == BlockFace.Bottom
-            BlockKind.Lever, BlockKind.Button -> {
+        if (BlockStates.isButton(state)) {
+            val face = BlockStates.leverFaceOf(state)
+            val facing = BlockStates.directionOf(state)
+            return when (side) {
+                BlockFace.Top -> face == LeverFace.Floor
+                BlockFace.Bottom -> face == LeverFace.Ceiling
+                else -> face == LeverFace.Wall && facing == side.unwrapDirection()
+            }
+        }
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneTorch, Blocks.RedstoneWallTorch -> side == BlockFace.Bottom
+            Blocks.Lever -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state)
                 when (side) {
@@ -260,7 +273,7 @@ object OptraIxCompiler {
                     else -> face == LeverFace.Wall && facing == side.unwrapDirection()
                 }
             }
-            BlockKind.RedstoneWire, BlockKind.Repeater, BlockKind.Comparator ->
+            Blocks.RedstoneWire, Blocks.Repeater, Blocks.Comparator ->
                 emitsWeak(world, state, pos, side, dustPower)
             else -> false
         }
@@ -309,7 +322,7 @@ object OptraIxCompiler {
                 BlockFace.Top, dustPower = true, side = false, weight = 0,
             )
             NodeType.WallTorch -> {
-                val facing = BlockDirection.Values[node.facing]
+                val facing = BlockDirection.entries[node.facing]
                 val wall = facing.opposite().blockFace()
                 addPowerSources(
                     world, sink, target, node.pos.offset(wall),
@@ -332,7 +345,7 @@ object OptraIxCompiler {
         for (face in BlockFace.All) {
             val neighborPos = pos.offset(face)
             val neighbor = world.getBlock(neighborPos)
-            if (BlockStates.kindOf(neighbor) == BlockKind.RedstoneWire) {
+            if (BlockStates.isType(neighbor, Blocks.RedstoneWire)) {
                 sink.edge(sink.resolve(neighborPos), target, 1, false)
             }
             addPowerSources(
@@ -342,13 +355,13 @@ object OptraIxCompiler {
             if (!face.isHorizontal) continue
             if (!BlockStates.isSolid(above) && !BlockStates.isTransparent(neighbor)) {
                 val upPos = neighborPos.offset(BlockFace.Top)
-                if (BlockStates.kindOf(world.getBlock(upPos)) == BlockKind.RedstoneWire) {
+                if (BlockStates.isType(world.getBlock(upPos), Blocks.RedstoneWire)) {
                     sink.edge(sink.resolve(upPos), target, 1, false)
                 }
             }
             if (!BlockStates.isSolid(neighbor)) {
                 val downPos = neighborPos.offset(BlockFace.Bottom)
-                if (BlockStates.kindOf(world.getBlock(downPos)) == BlockKind.RedstoneWire) {
+                if (BlockStates.isType(world.getBlock(downPos), Blocks.RedstoneWire)) {
                     sink.edge(sink.resolve(downPos), target, 1, false)
                 }
             }
@@ -356,13 +369,13 @@ object OptraIxCompiler {
     }
 
     private fun buildRepeaterEdges(world: World, sink: EdgeSink, node: GraphNode, target: Int) {
-        val facing = BlockDirection.Values[node.facing]
+        val facing = BlockDirection.entries[node.facing]
         val inputPos = node.pos.offset(facing.blockFace())
         addPowerSources(
             world, sink, target, inputPos, facing.blockFace(),
             dustPower = true, side = false, weight = 0,
         )
-        if (BlockStates.kindOf(world.getBlock(inputPos)) == BlockKind.RedstoneWire) {
+        if (BlockStates.isType(world.getBlock(inputPos), Blocks.RedstoneWire)) {
             sink.edge(sink.resolve(inputPos), target, 0, false)
         }
         for (side in arrayOf(facing.rotate(), facing.rotateCcw())) {
@@ -375,7 +388,7 @@ object OptraIxCompiler {
     }
 
     private fun buildComparatorEdges(world: World, sink: EdgeSink, node: GraphNode, target: Int) {
-        val facing = BlockDirection.Values[node.facing]
+        val facing = BlockDirection.entries[node.facing]
         val face = facing.blockFace()
         val inputPos = node.pos.offset(face)
         val inputState = world.getBlock(inputPos)
@@ -387,7 +400,7 @@ object OptraIxCompiler {
                 world, sink, target, inputPos, face,
                 dustPower = true, side = false, weight = 0,
             )
-            if (BlockStates.kindOf(inputState) == BlockKind.RedstoneWire) {
+            if (BlockStates.isType(inputState, Blocks.RedstoneWire)) {
                 sink.edge(sink.resolve(inputPos), target, 0, false)
             }
             if (BlockStates.isSolid(inputState)) {
@@ -408,9 +421,9 @@ object OptraIxCompiler {
                         sink.edge(sink.resolve(sidePos), target, 0, true)
                     }
                 }
-                BlockStates.kindOf(sideState) == BlockKind.RedstoneWire ->
+                BlockStates.isType(sideState, Blocks.RedstoneWire) ->
                     sink.edge(sink.resolve(sidePos), target, 0, true)
-                BlockStates.kindOf(sideState) == BlockKind.RedstoneBlock ->
+                BlockStates.isType(sideState, Blocks.RedstoneBlock) ->
                     sink.edge(sink.resolve(sidePos), target, 0, true)
             }
         }
@@ -455,7 +468,7 @@ object OptraIxCompiler {
 
         override fun unmapped(pos: BlockPos) {
             if (graph.idAt(pos) >= 0) return
-            if (BlockStates.kindOf(world.getBlock(pos)) == BlockKind.RedstoneWire) return
+            if (BlockStates.isType(world.getBlock(pos), Blocks.RedstoneWire)) return
             throw OptraIxCompileException("unmapped power source at $pos")
         }
 

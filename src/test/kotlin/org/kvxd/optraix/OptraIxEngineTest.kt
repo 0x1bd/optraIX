@@ -1,10 +1,6 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
-import org.kvxd.optraix.block.property.LeverFace
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
@@ -88,7 +84,7 @@ class OptraIxEngineTest {
         val pos = BlockPos(5, 1, 0)
 
         assertTrue(engine.compile(world))
-        assertEquals(BlockKind.Repeater, BlockStates.kindOf(world.getBlock(pos)))
+        assertEquals(Blocks.Repeater, BlockStates.typeOf(world.getBlock(pos)))
 
         interaction.destroy(world.getBlock(pos), world, pos)
         assertEquals(Blocks.Air.defaultState, world.getBlock(pos))
@@ -97,7 +93,7 @@ class OptraIxEngineTest {
         interaction.placeInWorld(Wire.makeCross(0), world, pos, null)
         repeat(4) { engine.tickWorld(world) }
 
-        assertEquals(BlockKind.RedstoneWire, BlockStates.kindOf(world.getBlock(pos)))
+        assertEquals(Blocks.RedstoneWire, BlockStates.typeOf(world.getBlock(pos)))
     }
 
     @Test
@@ -123,7 +119,7 @@ class OptraIxEngineTest {
             setBlock(pos, Wire.makeCross(0))
         }
 
-        assertEquals(BlockKind.RedstoneWire, BlockStates.kindOf(world.getBlock(pos)))
+        assertEquals(Blocks.RedstoneWire, BlockStates.typeOf(world.getBlock(pos)))
     }
 
     @Test

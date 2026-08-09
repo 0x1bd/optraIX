@@ -1,9 +1,6 @@
 package org.kvxd.optraix.redstone.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
-import org.kvxd.optraix.block.property.ComparatorMode
-import org.kvxd.optraix.block.property.Instrument
 import org.kvxd.optraix.redstone.mchprs.NoteBlock
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
@@ -11,6 +8,9 @@ import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.ComparatorMode
+import org.kvxd.optraix.mcdata.v1_20_4.Instrument
 
 class OptraIxCircuit internal constructor(
     val count: Int,
@@ -539,27 +539,27 @@ class OptraIxCircuit internal constructor(
             NodeType.Wire -> BlockStates.wireWithPower(base, outputOf(node))
             NodeType.Repeater -> BlockStates.repeaterState(
                 delayData[node].toInt(),
-                BlockDirection.Values[facingData[node].toInt()],
+                BlockDirection.entries[facingData[node].toInt()],
                 (word and LockedBit) != 0L,
                 on,
             )
             NodeType.Comparator -> BlockStates.comparatorState(
-                BlockDirection.Values[facingData[node].toInt()],
+                BlockDirection.entries[facingData[node].toInt()],
                 ComparatorMode.entries[modeData[node].toInt()],
                 on,
             )
             NodeType.Torch -> BlockStates.torchState(on)
-            NodeType.WallTorch -> BlockStates.wallTorchState(on, BlockDirection.Values[facingData[node].toInt()])
+            NodeType.WallTorch -> BlockStates.wallTorchState(on, BlockDirection.entries[facingData[node].toInt()])
             NodeType.Lamp -> BlockStates.lampState(on)
             NodeType.Lever -> BlockStates.leverState(
                 BlockStates.leverFaceOf(base),
-                BlockDirection.Values[facingData[node].toInt()],
+                BlockDirection.entries[facingData[node].toInt()],
                 on,
             )
             NodeType.Button -> BlockStates.withPowered(base, on)
             NodeType.PressurePlate -> BlockStates.withPowered(base, on)
             NodeType.NoteBlock -> BlockStates.noteBlockState(
-                Instrument.Values[modeData[node].toInt()],
+                Instrument.entries[modeData[node].toInt()],
                 delayData[node].toInt(),
                 on,
             )
@@ -605,7 +605,7 @@ class OptraIxCircuit internal constructor(
                 pos,
                 BlockStates.repeaterState(
                     kind and 7,
-                    BlockDirection.Values[linkFacing[slot].toInt()],
+                    BlockDirection.entries[linkFacing[slot].toInt()],
                     false,
                     on,
                 ),
@@ -615,7 +615,7 @@ class OptraIxCircuit internal constructor(
                 world.setBlock(
                     pos,
                     BlockStates.comparatorState(
-                        BlockDirection.Values[linkFacing[slot].toInt()],
+                        BlockDirection.entries[linkFacing[slot].toInt()],
                         if ((kind and SubtractLink) != 0) {
                             ComparatorMode.Subtract
                         } else {
@@ -641,7 +641,7 @@ class OptraIxCircuit internal constructor(
                     pos,
                     BlockStates.wallTorchState(
                         on,
-                        BlockDirection.Values[linkFacing[slot].toInt()],
+                        BlockDirection.entries[linkFacing[slot].toInt()],
                     ),
                 )
         }
@@ -660,7 +660,7 @@ class OptraIxCircuit internal constructor(
                 pos,
                 BlockStates.repeaterState(
                     kind and 7,
-                    BlockDirection.Values[linkFacing[slot].toInt()],
+                    BlockDirection.entries[linkFacing[slot].toInt()],
                     false,
                     on,
                 ),
@@ -670,7 +670,7 @@ class OptraIxCircuit internal constructor(
                 world.setBlockSilent(
                     pos,
                     BlockStates.comparatorState(
-                        BlockDirection.Values[linkFacing[slot].toInt()],
+                        BlockDirection.entries[linkFacing[slot].toInt()],
                         if ((kind and SubtractLink) != 0) {
                             ComparatorMode.Subtract
                         } else {
@@ -696,7 +696,7 @@ class OptraIxCircuit internal constructor(
                     pos,
                     BlockStates.wallTorchState(
                         on,
-                        BlockDirection.Values[linkFacing[slot].toInt()],
+                        BlockDirection.entries[linkFacing[slot].toInt()],
                     ),
                 )
         }
@@ -756,7 +756,7 @@ class OptraIxCircuit internal constructor(
                 NoteBlock.playNote(
                     world,
                     pos,
-                    Instrument.Values[modeData[node].toInt()],
+                    Instrument.entries[modeData[node].toInt()],
                     delayData[node].toInt(),
                 )
             }

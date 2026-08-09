@@ -4,8 +4,8 @@ import com.sun.management.OperatingSystemMXBean
 import java.lang.management.ManagementFactory
 import java.nio.file.Files
 import java.nio.file.Path
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.GameWorld
 
 internal data class CompileMemoryPlan(
@@ -43,7 +43,7 @@ internal object CompileMemoryPreflight {
                 if (!sectionHasCandidates(section)) continue
                 section.forEachState { _, state ->
                     if (isComponentCandidate(state)) {
-                        if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) wires++ else components++
+                        if (BlockStates.isType(state, Blocks.RedstoneWire)) wires++ else components++
                     }
                 }
             }

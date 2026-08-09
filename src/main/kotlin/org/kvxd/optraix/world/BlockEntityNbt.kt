@@ -6,7 +6,9 @@ import net.lenni0451.mcstructs.nbt.tags.ByteTag
 import net.lenni0451.mcstructs.nbt.tags.CompoundTag
 import net.lenni0451.mcstructs.nbt.tags.IntTag
 import net.lenni0451.mcstructs.nbt.tags.StringTag
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.itemName
+import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.mcdata.v1_20_4.Items as GeneratedItems
 import org.kvxd.optraix.nbt.asIntOrNull
 import org.kvxd.optraix.nbt.asStringOrNull
 import org.kvxd.optraix.nbt.compound
@@ -60,14 +62,14 @@ object BlockEntityNbt {
             val count = (compound.tag("Count") ?: compound.tag("count"))?.asIntOrNull() ?: continue
             val slot = (compound.tag("Slot") ?: compound.tag("slot"))?.asIntOrNull() ?: continue
             val name = (compound.tag("Id") ?: compound.tag("id"))?.asStringOrNull() ?: continue
-            val item = Items.byName(name)
+            val item = mcData.item(name)
             inventory += InventoryEntry(
-                id = item?.protocolId ?: (Items.protocolIdOf("minecraft:redstone") ?: 0),
+                id = item?.id ?: GeneratedItems.Redstone.id,
                 slot = slot,
                 count = count,
                 nbt = compound.tag("tag"),
             )
-            fullnessSum += count.toFloat() / (item?.maxStackSize ?: 64).toFloat()
+            fullnessSum += count.toFloat() / (item?.stackSize ?: 64).toFloat()
         }
         val override = floor(
             (if (fullnessSum > 0.0f) 1.0f else 0.0f) + (fullnessSum / kind.slots.toFloat()) * 14.0f
@@ -100,7 +102,7 @@ object BlockEntityNbt {
                 entity.inventory.map {
                     compoundOf(
                         "Count" to ByteTag(it.count.toByte()),
-                        "id" to StringTag(Items.nameOf(it.id)),
+                        "id" to StringTag(itemName(it.id)),
                         "Slot" to ByteTag(it.slot.toByte()),
                     )
                 }

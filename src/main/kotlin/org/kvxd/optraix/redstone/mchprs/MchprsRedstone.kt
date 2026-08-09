@@ -1,11 +1,9 @@
 package org.kvxd.optraix.redstone.mchprs
 
-import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.LeverFace
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
 import org.kvxd.optraix.world.BlockEntity
@@ -13,6 +11,12 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.LeverFace
+import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.block.property.isNone
+import org.kvxd.optraix.block.property.toggle
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 object MchprsRedstone : RedstoneEngine {
 
@@ -25,27 +29,27 @@ object MchprsRedstone : RedstoneEngine {
     fun getWeakPower(state: Int, world: World, pos: BlockPos, side: BlockFace, dustPower: Boolean): Int {
         BlockStates.pressurePlatePowered(state)?.let { if (it) return 15 }
 
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneTorch ->
+        if (BlockStates.isButton(state)) return if (BlockStates.powered[state]) 15 else 0
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneTorch ->
                 if (BlockStates.lit[state] && side != BlockFace.Top) 15 else 0
-            BlockKind.RedstoneWallTorch -> {
+            Blocks.RedstoneWallTorch -> {
                 val facing = BlockStates.directionOf(state)
                 if (BlockStates.lit[state] && facing != null && facing.blockFace() != side) 15 else 0
             }
-            BlockKind.RedstoneBlock -> 15
-            BlockKind.Lever -> if (BlockStates.powered[state]) 15 else 0
-            BlockKind.Button -> if (BlockStates.powered[state]) 15 else 0
-            BlockKind.Repeater -> {
+            Blocks.RedstoneBlock -> 15
+            Blocks.Lever -> if (BlockStates.powered[state]) 15 else 0
+            Blocks.Repeater -> {
                 val facing = BlockStates.directionOf(state)
                 if (facing != null && facing.blockFace() == side && BlockStates.powered[state]) 15 else 0
             }
-            BlockKind.Comparator -> {
+            Blocks.Comparator -> {
                 val facing = BlockStates.directionOf(state)
                 if (facing != null && facing.blockFace() == side) {
                     (world.getBlockEntity(pos) as? BlockEntity.Comparator)?.outputStrength ?: 0
                 } else 0
             }
-            BlockKind.RedstoneWire -> {
+            Blocks.RedstoneWire -> {
                 if (!dustPower) 0
                 else when (side) {
                     BlockFace.Top -> BlockStates.wirePower[state].toInt()
@@ -65,12 +69,22 @@ object MchprsRedstone : RedstoneEngine {
     fun getStrongPower(state: Int, world: World, pos: BlockPos, side: BlockFace, dustPower: Boolean): Int {
         BlockStates.pressurePlatePowered(state)?.let { if (it && side == BlockFace.Top) return 15 }
 
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneTorch ->
+        if (BlockStates.isButton(state)) {
+            val face = BlockStates.leverFaceOf(state)
+            val facing = BlockStates.directionOf(state)
+            val matches = when (side) {
+                BlockFace.Top -> face == LeverFace.Floor
+                BlockFace.Bottom -> face == LeverFace.Ceiling
+                else -> face == LeverFace.Wall && facing == side.unwrapDirection()
+            }
+            return boolToSs(matches && BlockStates.powered[state])
+        }
+        return when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneTorch ->
                 if (BlockStates.lit[state] && side == BlockFace.Bottom) 15 else 0
-            BlockKind.RedstoneWallTorch ->
+            Blocks.RedstoneWallTorch ->
                 if (BlockStates.lit[state] && side == BlockFace.Bottom) 15 else 0
-            BlockKind.Lever, BlockKind.Button -> {
+            Blocks.Lever -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state)
                 val matches = when (side) {
@@ -80,7 +94,7 @@ object MchprsRedstone : RedstoneEngine {
                 }
                 boolToSs(matches && BlockStates.powered[state])
             }
-            BlockKind.RedstoneWire, BlockKind.Repeater, BlockKind.Comparator ->
+            Blocks.RedstoneWire, Blocks.Repeater, Blocks.Comparator ->
                 getWeakPower(state, world, pos, side, dustPower)
             else -> 0
         }
@@ -131,7 +145,7 @@ object MchprsRedstone : RedstoneEngine {
         val inputPos = pos.offset(facing.blockFace())
         val inputState = world.getBlock(inputPos)
         var power = getRedstonePower(inputState, world, inputPos, facing.blockFace())
-        if (power == 0 && BlockStates.kindOf(inputState) == BlockKind.RedstoneWire) {
+        if (power == 0 && BlockStates.isType(inputState, Blocks.RedstoneWire)) {
             power = BlockStates.wirePower[inputState].toInt()
         }
         return power
@@ -143,15 +157,15 @@ object MchprsRedstone : RedstoneEngine {
 
     fun update(state: Int, world: World, pos: BlockPos) {
         stats.blockUpdates++
-        when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneWire -> Wire.onNeighborUpdated(state, world, pos)
-            BlockKind.RedstoneTorch -> {
+        when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneWire -> Wire.onNeighborUpdated(state, world, pos)
+            Blocks.RedstoneTorch -> {
                 if (BlockStates.lit[state] == torchShouldBeOff(world, pos) && !world.pendingTickAt(pos)) {
                     world.scheduleTick(pos, 1, TickPriority.Normal)
                     stats.scheduledTicks++
                 }
             }
-            BlockKind.RedstoneWallTorch -> {
+            Blocks.RedstoneWallTorch -> {
                 val facing = BlockStates.directionOf(state) ?: return
                 if (BlockStates.lit[state] == wallTorchShouldBeOff(world, pos, facing) &&
                     !world.pendingTickAt(pos)
@@ -160,9 +174,9 @@ object MchprsRedstone : RedstoneEngine {
                     stats.scheduledTicks++
                 }
             }
-            BlockKind.Repeater -> Repeater.onNeighborUpdated(state, world, pos)
-            BlockKind.Comparator -> Comparator.update(state, world, pos)
-            BlockKind.RedstoneLamp -> {
+            Blocks.Repeater -> Repeater.onNeighborUpdated(state, world, pos)
+            Blocks.Comparator -> Comparator.update(state, world, pos)
+            Blocks.RedstoneLamp -> {
                 val lit = BlockStates.lit[state]
                 val shouldBeLit = redstoneLampShouldBeLit(world, pos)
                 if (lit && !shouldBeLit) {
@@ -172,7 +186,7 @@ object MchprsRedstone : RedstoneEngine {
                     world.setBlock(pos, BlockStates.lampState(true))
                 }
             }
-            BlockKind.IronTrapdoor -> {
+            Blocks.IronTrapdoor -> {
                 val powered = BlockStates.powered[state]
                 val shouldBePowered = redstoneLampShouldBeLit(world, pos)
                 if (powered != shouldBePowered) {
@@ -186,11 +200,11 @@ object MchprsRedstone : RedstoneEngine {
                     world.setBlock(pos, newState)
                 }
             }
-            BlockKind.NoteBlock -> {
+            Blocks.NoteBlock -> {
                 val note = BlockStates.note[state].toInt()
                 val shouldBePowered = redstoneLampShouldBeLit(world, pos)
                 val live = world.getBlock(pos)
-                if (BlockStates.kindOf(live) != BlockKind.NoteBlock) return
+                if (BlockStates.typeOf(live) != Blocks.NoteBlock) return
                 val powered = BlockStates.powered[live]
                 if (powered != shouldBePowered) {
                     val instrument = NoteBlock.instrumentAt(world, pos)
@@ -210,10 +224,10 @@ object MchprsRedstone : RedstoneEngine {
     }
 
     fun tick(state: Int, world: World, pos: BlockPos) {
-        when (BlockStates.kindOf(state)) {
-            BlockKind.Repeater -> Repeater.tick(state, world, pos)
-            BlockKind.Comparator -> Comparator.tick(state, world, pos)
-            BlockKind.RedstoneTorch -> {
+        when (BlockStates.typeOf(state)) {
+            Blocks.Repeater -> Repeater.tick(state, world, pos)
+            Blocks.Comparator -> Comparator.tick(state, world, pos)
+            Blocks.RedstoneTorch -> {
                 val lit = BlockStates.lit[state]
                 val shouldBeOff = torchShouldBeOff(world, pos)
                 if (lit && shouldBeOff) {
@@ -224,7 +238,7 @@ object MchprsRedstone : RedstoneEngine {
                     updateSurroundingBlocks(world, pos)
                 }
             }
-            BlockKind.RedstoneWallTorch -> {
+            Blocks.RedstoneWallTorch -> {
                 val facing = BlockStates.directionOf(state) ?: return
                 val lit = BlockStates.lit[state]
                 val shouldBeOff = wallTorchShouldBeOff(world, pos, facing)
@@ -236,13 +250,13 @@ object MchprsRedstone : RedstoneEngine {
                     updateSurroundingBlocks(world, pos)
                 }
             }
-            BlockKind.RedstoneLamp -> {
+            Blocks.RedstoneLamp -> {
                 if (BlockStates.lit[state] && !redstoneLampShouldBeLit(world, pos)) {
                     world.setBlock(pos, BlockStates.lampState(false))
                 }
             }
-            BlockKind.Button -> {
-                if (BlockStates.powered[state]) {
+            else -> {
+                if (BlockStates.isButton(state) && BlockStates.powered[state]) {
                     val face = BlockStates.leverFaceOf(state)
                     val facing = BlockStates.directionOf(state) ?: BlockDirection.North
                     world.setBlock(pos, BlockStates.withPowered(state, false))
@@ -250,7 +264,6 @@ object MchprsRedstone : RedstoneEngine {
                     updateAttachedFace(world, pos, face, facing)
                 }
             }
-            else -> Unit
         }
     }
 
@@ -286,10 +299,8 @@ object MchprsRedstone : RedstoneEngine {
         }
     }
 
-    override fun isDiode(state: Int): Boolean = when (BlockStates.kindOf(state)) {
-        BlockKind.Repeater, BlockKind.Comparator -> true
-        else -> false
-    }
+    override fun isDiode(state: Int): Boolean =
+        BlockStates.isType(state, Blocks.Repeater) || BlockStates.isType(state, Blocks.Comparator)
 
     override fun wireStateOnNeighborChanged(world: World, pos: BlockPos, state: Int, side: BlockFace): Int =
         Wire.onNeighborChanged(state, world, pos, side)
@@ -302,8 +313,19 @@ object MchprsRedstone : RedstoneEngine {
 
     override fun onUse(world: World, pos: BlockPos): Boolean {
         val state = world.getBlock(pos)
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.Repeater -> {
+        if (BlockStates.isButton(state)) {
+            if (!BlockStates.powered[state]) {
+                val face = BlockStates.leverFaceOf(state)
+                val facing = BlockStates.directionOf(state) ?: BlockDirection.North
+                world.setBlock(pos, BlockStates.withPowered(state, true))
+                world.scheduleTick(pos, BlockStates.buttonDuration(state), TickPriority.Normal)
+                updateSurroundingBlocks(world, pos)
+                updateAttachedFace(world, pos, face, facing)
+            }
+            return true
+        }
+        return when (BlockStates.typeOf(state)) {
+            Blocks.Repeater -> {
                 var delay = BlockStates.delay[state] + 1
                 if (delay > 4) delay -= 4
                 val facing = BlockStates.directionOf(state) ?: BlockDirection.North
@@ -315,7 +337,7 @@ object MchprsRedstone : RedstoneEngine {
                 )
                 true
             }
-            BlockKind.Comparator -> {
+            Blocks.Comparator -> {
                 val facing = BlockStates.directionOf(state) ?: BlockDirection.North
                 val mode = BlockStates.comparatorModeOf(state).toggle()
                 val newState = BlockStates.comparatorState(facing, mode, BlockStates.powered[state])
@@ -323,7 +345,7 @@ object MchprsRedstone : RedstoneEngine {
                 world.setBlock(pos, newState)
                 true
             }
-            BlockKind.Lever -> {
+            Blocks.Lever -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state) ?: BlockDirection.North
                 world.setBlock(pos, BlockStates.leverState(face, facing, !BlockStates.powered[state]))
@@ -331,18 +353,7 @@ object MchprsRedstone : RedstoneEngine {
                 updateAttachedFace(world, pos, face, facing)
                 true
             }
-            BlockKind.Button -> {
-                if (!BlockStates.powered[state]) {
-                    val face = BlockStates.leverFaceOf(state)
-                    val facing = BlockStates.directionOf(state) ?: BlockDirection.North
-                    world.setBlock(pos, BlockStates.withPowered(state, true))
-                    world.scheduleTick(pos, BlockStates.buttonDuration(state), TickPriority.Normal)
-                    updateSurroundingBlocks(world, pos)
-                    updateAttachedFace(world, pos, face, facing)
-                }
-                true
-            }
-            BlockKind.RedstoneWire -> {
+            Blocks.RedstoneWire -> {
                 if (Wire.isDot(state) || Wire.isCross(state)) {
                     val power = BlockStates.wirePower[state].toInt()
                     var newState = if (Wire.isCross(state)) {
@@ -359,7 +370,7 @@ object MchprsRedstone : RedstoneEngine {
                 }
                 false
             }
-            BlockKind.NoteBlock -> {
+            Blocks.NoteBlock -> {
                 val note = (BlockStates.note[state] + 1) % 25
                 val instrument = NoteBlock.instrumentAt(world, pos)
                 world.setBlock(

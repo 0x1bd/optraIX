@@ -2,6 +2,7 @@ package org.kvxd.optraix.worldedit
 
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFacing
+import org.kvxd.optraix.block.property.blockFacing
 
 object Directions {
 

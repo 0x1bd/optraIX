@@ -1,6 +1,5 @@
 package org.kvxd.optraix.bench
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
@@ -57,7 +56,7 @@ object WorldAbBench {
                 val section = chunk.sections[sectionIndex] ?: continue
                 if (section.blockCount == 0) continue
                 for (slot in 0 until 4096) {
-                    if (BlockStates.kindOf(section.get(slot)) != BlockKind.Lever) continue
+                    if (!BlockStates.isType(section.get(slot), Blocks.Lever)) continue
                     levers.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),

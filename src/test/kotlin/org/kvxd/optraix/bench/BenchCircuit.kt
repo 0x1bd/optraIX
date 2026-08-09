@@ -1,9 +1,6 @@
 package org.kvxd.optraix.bench
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
-import org.kvxd.optraix.block.property.ComparatorMode
-import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld

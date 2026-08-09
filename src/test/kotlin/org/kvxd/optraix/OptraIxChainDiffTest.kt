@@ -1,11 +1,6 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
-import org.kvxd.optraix.block.property.ComparatorMode
-import org.kvxd.optraix.block.property.LeverFace
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
@@ -120,7 +115,7 @@ class OptraIxChainDiffTest {
                 for (slot in 0 until 4096) {
                     val state = section.get(slot)
                     if (state == Blocks.Air.defaultState || state == stone) continue
-                    if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) continue
+                    if (BlockStates.isType(state, Blocks.RedstoneWire)) continue
                     positions.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),

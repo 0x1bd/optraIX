@@ -13,7 +13,9 @@ import org.kvxd.optraix.ServerConfig
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.ItemStack
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.itemByProtocolId
+import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.mcdata.v1_20_4.Items as GeneratedItems
 import org.kvxd.optraix.command.CommandRegistry
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.interaction.UseOnBlockContext
@@ -97,7 +99,6 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.Clientb
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingPacket as StatusPingPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundPingPacket as StatusPongPacket
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
-import org.kvxd.optraix.block.mcData
 
 class OptraIxServer(val config: ServerConfig) {
 
@@ -1055,7 +1056,7 @@ class OptraIxServer(val config: ServerConfig) {
     fun sendInventory(player: Player) {
         val slots = player.inventory.map { stack ->
             if (stack == null) Slot(false, null, null, null)
-            else Slot(true, stack.item.protocolId, stack.count.toByte(), stack.nbt)
+            else Slot(true, stack.item.id, stack.count.toByte(), stack.nbt)
         }
         player.connection.send(
             ClientboundWindowItemsPacket(0, 0, slots, Slot(false, null, null, null))
@@ -1221,7 +1222,7 @@ class OptraIxServer(val config: ServerConfig) {
     private fun toStack(slot: Slot): ItemStack? {
         val itemId = slot.itemId
         if (!slot.present || itemId == null) return null
-        return ItemStack(Items.byProtocolId(itemId), slot.itemCount?.toInt() ?: 1, slot.nbtData)
+        return ItemStack(itemByProtocolId(itemId), slot.itemCount?.toInt() ?: 1, slot.nbtData)
     }
 
     fun pickItemFromBlock(playerUuid: UUID, pos: BlockPos, includeData: Boolean) {
@@ -1242,7 +1243,7 @@ class OptraIxServer(val config: ServerConfig) {
             blockName == "powder_snow_cauldron" -> "minecraft:cauldron"
             else -> blockName
         }
-        val item = Items.byName(itemName) ?: return
+        val item = mcData.item(itemName) ?: return
         val nbt = if (includeData) {
             world.getBlockEntity(pos)?.let { compoundOf("BlockEntityTag" to BlockEntityNbt.toNbt(it)) }
         } else {
@@ -1312,7 +1313,7 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun samePickedItem(first: ItemStack, second: ItemStack): Boolean =
-        first.item.protocolId == second.item.protocolId && first.nbt == second.nbt
+        first.item.id == second.item.id && first.nbt == second.nbt
 
     private fun dropHeld(player: Player, wholeStack: Boolean) {
         val index = 36 + player.selectedSlot
@@ -1371,7 +1372,7 @@ class OptraIxServer(val config: ServerConfig) {
             playerPos = player.blockPos,
         )
 
-        val stack = held ?: ItemStack(Items.unknown, 0, null)
+        val stack = held ?: ItemStack(GeneratedItems.Air, 0, null)
         val result = interaction.useItemOnBlock(stack, world, context)
         result.openSignEditorAt?.let { signPos ->
             player.connection.send(

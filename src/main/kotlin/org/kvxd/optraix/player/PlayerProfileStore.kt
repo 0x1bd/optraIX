@@ -1,7 +1,8 @@
 package org.kvxd.optraix.player
 
 import org.kvxd.optraix.block.ItemStack
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.minecraftName
 import org.kvxd.optraix.world.DefaultWorldName
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -49,7 +50,7 @@ class PlayerProfileStore(private val file: File) {
                     val slot = input.readInt()
                     val itemName = input.readUTF()
                     val count = input.readInt()
-                    val item = Items.byName(itemName)
+                    val item = mcData.item(itemName)
                     if (item != null && slot in inventory.indices) {
                         inventory[slot] = ItemStack(item, count, null)
                     }
@@ -88,7 +89,7 @@ class PlayerProfileStore(private val file: File) {
                 output.writeInt(filled.size)
                 for ((slot, stack) in filled) {
                     output.writeInt(slot)
-                    output.writeUTF(stack!!.item.name)
+                    output.writeUTF(stack!!.item.minecraftName)
                     output.writeInt(stack.count)
                 }
             }

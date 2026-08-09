@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player

@@ -2,11 +2,11 @@ package org.kvxd.optraix.redstone.mchprs
 
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.Instrument
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.World
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.block.property.Instrument
 
 object NoteBlock {
 

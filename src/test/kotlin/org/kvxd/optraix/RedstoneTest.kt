@@ -1,12 +1,7 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.ComparatorMode
-import org.kvxd.optraix.block.property.LeverFace
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
@@ -52,7 +47,7 @@ class RedstoneTest {
     @Test
     fun repeaterStateRoundTrips() {
         val state = BlockStates.repeaterState(3, BlockDirection.West, locked = true, powered = false)
-        assertEquals(BlockKind.Repeater, BlockStates.kindOf(state))
+        assertEquals(Blocks.Repeater, BlockStates.typeOf(state))
         assertEquals(3, BlockStates.delay[state].toInt())
         assertEquals(BlockDirection.West, BlockStates.directionOf(state))
         assertTrue(BlockStates.locked[state])
@@ -62,7 +57,7 @@ class RedstoneTest {
     @Test
     fun comparatorStateRoundTrips() {
         val state = BlockStates.comparatorState(BlockDirection.West, ComparatorMode.Subtract, false)
-        assertEquals(BlockKind.Comparator, BlockStates.kindOf(state))
+        assertEquals(Blocks.Comparator, BlockStates.typeOf(state))
         assertEquals(BlockDirection.West, BlockStates.directionOf(state))
         assertEquals(ComparatorMode.Subtract, BlockStates.comparatorModeOf(state))
     }

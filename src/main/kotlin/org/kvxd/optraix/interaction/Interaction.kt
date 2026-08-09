@@ -1,22 +1,28 @@
 package org.kvxd.optraix.interaction
 
 import net.lenni0451.mcstructs.nbt.NbtTag
+import org.kvxd.kmcprotocol.data.ItemData
+import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.ItemStack
+import org.kvxd.optraix.block.isBlock
+import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.property.BlockFacing
-import org.kvxd.optraix.block.BlockKind
-import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.HopperFacing
 import org.kvxd.optraix.block.property.Instrument
-import org.kvxd.optraix.block.Item
-import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.SlabType
 import org.kvxd.optraix.block.property.TrapdoorHalf
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
+import org.kvxd.optraix.block.simplePlacement
+import org.kvxd.optraix.mcdata.v1_20_4.Axis2
+import org.kvxd.optraix.mcdata.v1_20_4.BlockStates as GeneratedBlockStates
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.WorldMutationContext
-import org.kvxd.optraix.worldedit.Directions
 import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockEntityNbt
@@ -24,9 +30,8 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.WORLD_HEIGHT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.World
+import org.kvxd.optraix.worldedit.Directions
 import kotlin.math.floor
-import org.kvxd.optraix.mcdata.v1_20_4.Blocks
-import org.kvxd.optraix.block.mcData
 
 class Interaction(private val redstone: RedstoneEngine) {
 
@@ -38,28 +43,24 @@ class Interaction(private val redstone: RedstoneEngine) {
             else -> BlockDirection.East
         }
 
-    fun onUse(state: Int, world: World, pos: BlockPos, itemInHand: Item?): ActionResult {
+    fun onUse(state: Int, world: World, pos: BlockPos, itemInHand: ItemData?): ActionResult {
         if (redstone.onUse(world, pos)) return ActionResult.Success
 
-        return when (BlockStates.kindOf(state)) {
-            BlockKind.SeaPickle -> {
+        return when (BlockStates.typeOf(state)) {
+            Blocks.SeaPickle -> {
                 val pickles = BlockStates.level[state].toInt()
-                if (itemInHand?.name == "minecraft:sea_pickle" && pickles < 4) {
-                    val type = mcData.requireBlockByStateId(state)
+                if (itemInHand?.name == "sea_pickle" && pickles < 4) {
                     redstone.mutate(world) {
-                        setBlock(
-                            pos,
-                            type.withValue(state, type.requireProperty("pickles"), (pickles + 1).toString()),
-                        )
+                        setBlock(pos, GeneratedBlockStates.seaPickle(pickles + 1, GeneratedBlockStates.seaPickleWaterlogged(state)))
                     }
                 }
                 ActionResult.Success
             }
-            BlockKind.EndPortalFrame -> {
-                if (itemInHand?.name == "minecraft:ender_eye" && !BlockStates.eye[state]) {
-                    val type = mcData.requireBlockByStateId(state)
+            Blocks.EndPortalFrame -> {
+                if (itemInHand?.name == "ender_eye" && !BlockStates.eye[state]) {
+                    val facing = BlockStates.directionOf(state) ?: BlockDirection.North
                     redstone.mutate(world) {
-                        setBlock(pos, type.withValue(state, type.requireProperty("eye"), "true"))
+                        setBlock(pos, GeneratedBlockStates.endPortalFrame(true, facing))
                         redstone.updateSurroundingBlocks(this, pos)
                     }
                     ActionResult.Success
@@ -76,11 +77,11 @@ class Interaction(private val redstone: RedstoneEngine) {
         return when (context.blockFace) {
             BlockFace.Bottom -> Blocks.Air.defaultState
             BlockFace.Top -> {
-                val type = mcData.requireBlock("minecraft:${wood}_sign")
+                val type = mcData.requireBlock("${wood}_sign")
                 type.stateOf(mapOf("rotation" to rotation.toString(), "waterlogged" to "false"))
             }
             else -> {
-                val type = mcData.requireBlock("minecraft:${wood}_wall_sign")
+                val type = mcData.requireBlock("${wood}_wall_sign")
                 type.stateOf(
                     mapOf(
                         "facing" to context.blockFace.unwrapDirection().name.lowercase(),
@@ -91,30 +92,26 @@ class Interaction(private val redstone: RedstoneEngine) {
         }
     }
 
-    fun getStateForPlacement(world: World, pos: BlockPos, item: Item, context: UseOnBlockContext): Int {
+    fun getStateForPlacement(world: World, pos: BlockPos, item: ItemData, context: UseOnBlockContext): Int {
         val name = item.name
         val simpleBlock = item.simplePlacement
 
         val block = when {
             name.endsWith("_sign") -> {
-                val wood = name.removePrefix("minecraft:").removeSuffix("_sign")
+                val wood = name.removeSuffix("_sign")
                 if (wood in BlockStates.signNames) signPlacement(context, wood) else Blocks.Air.defaultState
             }
-            name == "minecraft:sea_pickle" -> BlockStates.seaPickleType.stateOf(
-                mapOf("pickles" to "1", "waterlogged" to "false")
-            )
-            name == "minecraft:furnace" -> BlockStates.furnaceType.stateOf(
-                mapOf("facing" to playerDirection(context.yaw).opposite().name.lowercase(), "lit" to "false")
-            )
+            name == "sea_pickle" -> GeneratedBlockStates.seaPickle(1, false)
+            name == "furnace" -> GeneratedBlockStates.furnace(playerDirection(context.yaw).opposite(), false)
             name.endsWith("_pressure_plate") -> {
                 val type = mcData.block(name)
-                if (type != null && BlockStates.kindOf(type.defaultState) == BlockKind.PressurePlate) {
+                if (type != null && BlockStates.isPressurePlate(type.defaultState)) {
                     type.stateOf(mapOf("powered" to "false"))
                 } else {
                     Blocks.Air.defaultState
                 }
             }
-            name == "minecraft:lever" -> {
+            name == "lever" -> {
                 val face = when (context.blockFace) {
                     BlockFace.Top -> LeverFace.Floor
                     BlockFace.Bottom -> LeverFace.Ceiling
@@ -124,18 +121,16 @@ class Interaction(private val redstone: RedstoneEngine) {
                 else playerDirection(context.yaw)
                 BlockStates.leverState(face, facing, false)
             }
-            name == "minecraft:redstone_torch" -> when (context.blockFace) {
+            name == "redstone_torch" -> when (context.blockFace) {
                 BlockFace.Top, BlockFace.Bottom -> BlockStates.torchState(true)
                 else -> BlockStates.wallTorchState(true, context.blockFace.unwrapDirection())
             }
-            name == "minecraft:tripwire_hook" -> when (context.blockFace) {
+            name == "tripwire_hook" -> when (context.blockFace) {
                 BlockFace.Bottom, BlockFace.Top -> Blocks.Air.defaultState
-                else -> BlockStates.tripwireHookType.stateOf(
-                    mapOf(
-                        "facing" to context.blockFace.unwrapDirection().name.lowercase(),
-                        "powered" to "false",
-                        "attached" to "false",
-                    )
+                else -> GeneratedBlockStates.tripwireHook(
+                    attached = false,
+                    facing = context.blockFace.unwrapDirection(),
+                    powered = false,
                 )
             }
             name.endsWith("_button") -> {
@@ -148,27 +143,20 @@ class Interaction(private val redstone: RedstoneEngine) {
                 else playerDirection(context.yaw)
                 BlockStates.buttonStateFor(mcData.requireBlock(name), face, facing, false)
             }
-            name == "minecraft:redstone_lamp" ->
-                BlockStates.lampState(redstone.redstoneLampShouldBeLit(world, pos))
-            name == "minecraft:hopper" -> BlockStates.hopperType.stateOf(
-                mapOf("enabled" to "false", "facing" to HopperFacing.Down.name.lowercase())
-            )
-            name == "minecraft:repeater" -> redstone.repeaterStateForPlacement(
+            name == "redstone_lamp" -> BlockStates.lampState(redstone.redstoneLampShouldBeLit(world, pos))
+            name == "hopper" -> GeneratedBlockStates.hopper(false, HopperFacing.Down)
+            name == "repeater" -> redstone.repeaterStateForPlacement(
                 world, pos, playerDirection(context.yaw).opposite()
             )
-            name == "minecraft:comparator" -> BlockStates.comparatorState(
+            name == "comparator" -> BlockStates.comparatorState(
                 playerDirection(context.yaw).opposite(), ComparatorMode.Compare, false
             )
-            name == "minecraft:redstone" -> redstone.wireStateForPlacement(world, pos)
-            name == "minecraft:barrel" -> BlockStates.barrelType.stateOf(
-                mapOf("facing" to BlockFacing.Up.name.lowercase(), "open" to "false")
-            )
-            name == "minecraft:target" -> BlockStates.targetType.stateOf(mapOf("power" to "0"))
-            name == "minecraft:smooth_stone_slab" || name == "minecraft:quartz_slab" ->
-                mcData.requireBlock(name).stateOf(
-                    mapOf("type" to SlabType.Top.name.lowercase(), "waterlogged" to "false")
-                )
-            name == "minecraft:iron_trapdoor" -> when (context.blockFace) {
+            name == "redstone" -> redstone.wireStateForPlacement(world, pos)
+            name == "barrel" -> GeneratedBlockStates.barrel(BlockFacing.Up, false)
+            name == "target" -> GeneratedBlockStates.target(0)
+            name == "smooth_stone_slab" -> GeneratedBlockStates.smoothStoneSlab(SlabType.Top, false)
+            name == "quartz_slab" -> GeneratedBlockStates.quartzSlab(SlabType.Top, false)
+            name == "iron_trapdoor" -> when (context.blockFace) {
                 BlockFace.Bottom -> BlockStates.trapdoorState(
                     playerDirection(context.yaw).opposite(), TrapdoorHalf.Top, false, false, false
                 )
@@ -183,19 +171,12 @@ class Interaction(private val redstone: RedstoneEngine) {
                     false,
                 )
             }
-            name == "minecraft:note_block" -> BlockStates.noteBlockState(Instrument.Harp, 0, false)
-            name == "minecraft:observer" -> BlockStates.observerType.stateOf(
-                mapOf(
-                    "facing" to Directions.facing(context.yaw, context.pitch).name.lowercase(),
-                    "powered" to "false",
-                )
-            )
-            name == "minecraft:bone_block" ->
-                mcData.requireBlock(name).stateOf(mapOf("axis" to "y"))
-            name == "minecraft:hay_block" ->
-                mcData.requireBlock(name).stateOf(mapOf("axis" to "y"))
-            name == "minecraft:end_portal_frame" -> BlockStates.endPortalFrameType.stateOf(
-                mapOf("eye" to "false", "facing" to playerDirection(context.yaw).opposite().name.lowercase())
+            name == "note_block" -> BlockStates.noteBlockState(Instrument.Harp, 0, false)
+            name == "observer" -> GeneratedBlockStates.observer(Directions.facing(context.yaw, context.pitch), false)
+            name == "bone_block" -> GeneratedBlockStates.boneBlock(Axis2.Y)
+            name == "hay_block" -> GeneratedBlockStates.hayBlock(Axis2.Y)
+            name == "end_portal_frame" -> GeneratedBlockStates.endPortalFrame(
+                false, playerDirection(context.yaw).opposite()
             )
             else -> Blocks.Air.defaultState
         }
@@ -223,7 +204,7 @@ class Interaction(private val redstone: RedstoneEngine) {
             else BlockEntities.ensure(mutation, pos)
         }
         changeSurroundingBlocks(mutation, pos)
-        if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
+        if (BlockStates.isType(state, Blocks.RedstoneWire)) {
             redstone.updateWireNeighbors(mutation, pos)
         } else {
             redstone.updateSurroundingBlocks(mutation, pos)
@@ -239,13 +220,13 @@ class Interaction(private val redstone: RedstoneEngine) {
     private fun destroy(state: Int, mutation: WorldMutationContext, pos: BlockPos) {
         if (BlockStates.hasBlockEntity(state)) mutation.deleteBlockEntity(pos)
 
-        when (BlockStates.kindOf(state)) {
-            BlockKind.RedstoneWire -> {
+        when (BlockStates.typeOf(state)) {
+            Blocks.RedstoneWire -> {
                 mutation.setBlock(pos, Blocks.Air.defaultState)
                 changeSurroundingBlocks(mutation, pos)
                 redstone.updateWireNeighbors(mutation, pos)
             }
-            BlockKind.Lever -> {
+            Blocks.Lever -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state) ?: BlockDirection.North
                 mutation.setBlock(pos, Blocks.Air.defaultState)
@@ -266,22 +247,22 @@ class Interaction(private val redstone: RedstoneEngine) {
     }
 
     fun isValidPosition(state: Int, world: World, pos: BlockPos): Boolean {
-        val kind = BlockStates.kindOf(state)
-        val checkBottom = when (kind) {
-            BlockKind.RedstoneWire, BlockKind.Comparator, BlockKind.Repeater, BlockKind.RedstoneTorch -> true
-            BlockKind.Lever, BlockKind.Button -> BlockStates.leverFaceOf(state) == LeverFace.Floor
-            BlockKind.Sign -> true
-            else -> false
+        val type = BlockStates.typeOf(state)
+        val button = BlockStates.isButton(state)
+        val checkBottom = when (type) {
+            Blocks.RedstoneWire, Blocks.Comparator, Blocks.Repeater, Blocks.RedstoneTorch -> true
+            Blocks.Lever -> BlockStates.leverFaceOf(state) == LeverFace.Floor
+            else -> button && BlockStates.leverFaceOf(state) == LeverFace.Floor || BlockStates.isSign(state)
         }
 
-        val checkTop = when (kind) {
-            BlockKind.Lever, BlockKind.Button -> BlockStates.leverFaceOf(state) == LeverFace.Ceiling
-            else -> false
+        val checkTop = when (type) {
+            Blocks.Lever -> BlockStates.leverFaceOf(state) == LeverFace.Ceiling
+            else -> button && BlockStates.leverFaceOf(state) == LeverFace.Ceiling
         }
 
-        val checkParent = BlockStates.wallSignFacing(state) ?: when (kind) {
-            BlockKind.TripwireHook -> BlockStates.directionOf(state)
-            BlockKind.Button, BlockKind.Lever ->
+        val checkParent = BlockStates.wallSignFacing(state) ?: when {
+            type == Blocks.TripwireHook -> BlockStates.directionOf(state)
+            type == Blocks.Lever || button ->
                 if (BlockStates.leverFaceOf(state) == LeverFace.Wall) BlockStates.directionOf(state) else null
             else -> null
         }
@@ -305,7 +286,7 @@ class Interaction(private val redstone: RedstoneEngine) {
             destroy(state, mutation, pos)
             return
         }
-        if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
+        if (BlockStates.isType(state, Blocks.RedstoneWire)) {
             val newState = redstone.wireStateOnNeighborChanged(mutation, pos, state, direction)
             if (mutation.setBlock(pos, newState)) redstone.updateWireNeighbors(mutation, pos)
         }

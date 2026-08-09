@@ -1,7 +1,7 @@
 package org.kvxd.optraix.tools
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.SECTION_COUNT
@@ -61,11 +61,12 @@ object CompileProfile {
                 blocks += section.blockCount
                 for (slot in 0 until 4096) {
                     val state = section.get(slot)
-                    val kind = BlockStates.kindOf(state)
-                    if (kind == BlockKind.Air) continue
+                    val type = BlockStates.typeOf(state)
+                    if (type == Blocks.Air) continue
                     val name = when {
                         BlockStates.pressurePlatePowered(state) != null -> "PressurePlate"
-                        else -> kind.name
+                        BlockStates.isButton(state) -> "Button"
+                        else -> type.displayName.replace(" ", "")
                     }
                     kinds[name] = (kinds[name] ?: 0) + 1
                 }

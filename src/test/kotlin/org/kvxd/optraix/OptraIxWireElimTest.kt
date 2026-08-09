@@ -1,7 +1,7 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
@@ -49,7 +49,7 @@ class OptraIxWireElimTest {
 
         val watched = circuit.posKey.map { BlockPos.unpack(it) }
         assertTrue(
-            watched.none { BlockStates.kindOf(referenceWorld.getBlock(it)) == BlockKind.RedstoneWire },
+            watched.none { BlockStates.isType(referenceWorld.getBlock(it), Blocks.RedstoneWire) },
             "seed $seed: wire elimination left dust nodes in the graph",
         )
 

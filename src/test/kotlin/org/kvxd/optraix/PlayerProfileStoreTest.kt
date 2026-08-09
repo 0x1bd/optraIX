@@ -1,7 +1,7 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.ItemStack
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.player.PlayerProfileStore
 import java.io.DataOutputStream
@@ -40,7 +40,7 @@ class PlayerProfileStoreTest {
         original.selectedSlot = 7
         original.showSelection = false
         original.showSidebar = false
-        original.inventory[36] = ItemStack(assertNotNull(Items.byName("minecraft:redstone")), 42, null)
+        original.inventory[36] = ItemStack(assertNotNull(mcData.item("minecraft:redstone")), 42, null)
 
         PlayerProfileStore(file).also {
             it.put(original)

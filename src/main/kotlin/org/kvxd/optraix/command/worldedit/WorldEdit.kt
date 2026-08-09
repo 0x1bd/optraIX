@@ -1,8 +1,8 @@
 package org.kvxd.optraix.command.worldedit
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.property.BlockFacing
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
@@ -13,7 +13,6 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Clipboard
 import org.kvxd.optraix.worldedit.Region
 import org.kvxd.optraix.worldedit.UndoEntry
-import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class WorldEdit(private val server: OptraIxServer) {
 
@@ -75,7 +74,7 @@ class WorldEdit(private val server: OptraIxServer) {
         for (packed in positions) {
             val pos = BlockPos.unpack(packed)
             val state = mutation.getBlock(pos)
-            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(mutation, pos)
+            if (BlockStates.isType(state, Blocks.RedstoneWire)) engine.updateWireNeighbors(mutation, pos)
             else engine.updateSurroundingBlocks(mutation, pos)
         }
     }
@@ -93,7 +92,7 @@ class WorldEdit(private val server: OptraIxServer) {
         for (index in 0 until size) {
             val pos = BlockPos.unpack(positions[index])
             val state = mutation.getBlock(pos)
-            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(mutation, pos)
+            if (BlockStates.isType(state, Blocks.RedstoneWire)) engine.updateWireNeighbors(mutation, pos)
             else engine.updateSurroundingBlocks(mutation, pos)
         }
     }

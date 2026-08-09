@@ -1,8 +1,6 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld

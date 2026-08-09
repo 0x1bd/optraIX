@@ -10,7 +10,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.Clientbou
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundWindowItemsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPickItemPacket
 import org.kvxd.optraix.block.ItemStack
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.world.BlockPos
@@ -51,7 +51,7 @@ class PickBlockTest {
         val pos = BlockPos(1, 1, 0)
         val state = Blocks.Sandstone.defaultState
         server.world.setBlockSilent(pos, state)
-        val sandstone = assertNotNull(org.kvxd.optraix.block.Items.byName("minecraft:sandstone"))
+        val sandstone = assertNotNull(mcData.item("minecraft:sandstone"))
         player.inventory[40] = org.kvxd.optraix.block.ItemStack(sandstone)
 
         server.pickItemFromBlock(player.uuid, pos, false)
@@ -68,7 +68,7 @@ class PickBlockTest {
         val sink = RecordingSink()
         val player = Player(1, UUID.randomUUID(), "Tester", sink)
         server.players += player
-        val sandstone = assertNotNull(Items.byName("minecraft:sandstone"))
+        val sandstone = assertNotNull(mcData.item("minecraft:sandstone"))
         player.inventory[10] = ItemStack(sandstone)
 
         server.handlePlayPacket(player, ServerboundPickItemPacket(10))

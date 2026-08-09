@@ -1,6 +1,6 @@
 package org.kvxd.optraix.net
 
-import org.kvxd.optraix.block.Items
+import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
@@ -71,7 +71,7 @@ object ContainerScreens {
     ): BlockEntity.Container {
         var fullness = 0.0f
         for (entry in entries) {
-            val maxStack = Items.byName(Items.nameOf(entry.id))?.maxStackSize ?: 64
+            val maxStack = mcData.item(entry.id)?.stackSize ?: 64
             fullness += entry.count.toFloat() / maxStack.toFloat()
         }
         val override = if (entries.isEmpty()) 0

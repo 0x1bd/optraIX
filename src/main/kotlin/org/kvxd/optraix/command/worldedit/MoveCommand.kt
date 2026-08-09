@@ -2,7 +2,6 @@ package org.kvxd.optraix.command.worldedit
 
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
-import org.kvxd.optraix.block.property.BlockFacing
 import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.argument

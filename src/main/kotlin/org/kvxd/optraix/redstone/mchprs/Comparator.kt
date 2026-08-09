@@ -1,10 +1,14 @@
 package org.kvxd.optraix.redstone.mchprs
 
-import org.kvxd.optraix.block.property.BlockDirection
+import org.kvxd.optraix.block.property.blockFace
+import org.kvxd.optraix.block.property.opposite
+import org.kvxd.optraix.block.property.rotate
+import org.kvxd.optraix.block.property.rotateCcw
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.TickPriority
@@ -18,9 +22,9 @@ object Comparator {
         return when {
             MchprsRedstone.isDiode(sideState) ->
                 MchprsRedstone.getWeakPower(sideState, world, sidePos, side.blockFace(), false)
-            BlockStates.kindOf(sideState) == BlockKind.RedstoneWire ->
+            BlockStates.isType(sideState, Blocks.RedstoneWire) ->
                 BlockStates.wirePower[sideState].toInt()
-            BlockStates.kindOf(sideState) == BlockKind.RedstoneBlock -> 15
+            BlockStates.isType(sideState, Blocks.RedstoneBlock) -> 15
             else -> 0
         }
     }
@@ -30,21 +34,21 @@ object Comparator {
         getPowerOnSide(world, pos, facing.rotateCcw()),
     )
 
-    fun hasOverride(state: Int): Boolean = when (BlockStates.kindOf(state)) {
-        BlockKind.Barrel, BlockKind.Furnace, BlockKind.Hopper,
-        BlockKind.Cauldron, BlockKind.Composter, BlockKind.Cake -> true
-        BlockKind.EndPortalFrame -> BlockStates.eye[state]
+    fun hasOverride(state: Int): Boolean = when (BlockStates.typeOf(state)) {
+        Blocks.Barrel, Blocks.Furnace, Blocks.Hopper,
+        Blocks.Cauldron, Blocks.Composter, Blocks.Cake -> true
+        Blocks.EndPortalFrame -> BlockStates.eye[state]
         else -> false
     }
 
-    fun getOverride(state: Int, world: World, pos: BlockPos): Int = when (BlockStates.kindOf(state)) {
-        BlockKind.Barrel, BlockKind.Furnace, BlockKind.Hopper ->
+    fun getOverride(state: Int, world: World, pos: BlockPos): Int = when (BlockStates.typeOf(state)) {
+        Blocks.Barrel, Blocks.Furnace, Blocks.Hopper ->
             (world.getBlockEntity(pos) as? BlockEntity.Container)?.comparatorOverride ?: 0
-        BlockKind.Cauldron -> 0
-        BlockKind.WaterCauldron -> BlockStates.level[state].toInt()
-        BlockKind.Composter -> BlockStates.level[state].toInt()
-        BlockKind.Cake -> 14 - 2 * BlockStates.level[state].toInt()
-        BlockKind.EndPortalFrame -> 15
+        Blocks.Cauldron -> 0
+        Blocks.WaterCauldron -> BlockStates.level[state].toInt()
+        Blocks.Composter -> BlockStates.level[state].toInt()
+        Blocks.Cake -> 14 - 2 * BlockStates.level[state].toInt()
+        Blocks.EndPortalFrame -> 15
         else -> 0
     }
 

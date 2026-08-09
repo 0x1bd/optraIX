@@ -1,8 +1,8 @@
 package org.kvxd.optraix.redstone.mchprs
 
 import org.kvxd.optraix.block.property.BlockFace
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.World
 
@@ -153,7 +153,7 @@ class WireTurbo private constructor() {
             for (index in current.indices) {
                 val id = current[index]
                 val state = nodes[id].state
-                if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
+                if (BlockStates.isType(state, Blocks.RedstoneWire)) {
                     updateNode(world, id, currentWalkLayer)
                 } else {
                     MchprsRedstone.update(state, world, nodes[id].pos)
@@ -188,7 +188,7 @@ class WireTurbo private constructor() {
 
     private fun getMaxCurrentStrength(upd: Int, strength: Int): Int {
         val state = nodes[upd].state
-        return if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
+        return if (BlockStates.isType(state, Blocks.RedstoneWire)) {
             maxOf(Wire.power(state), strength)
         } else {
             strength

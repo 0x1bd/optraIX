@@ -1,10 +1,6 @@
 package org.kvxd.optraix
 
-import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.property.BlockDirection
-import org.kvxd.optraix.block.property.LeverFace
-import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
@@ -48,7 +44,7 @@ class OptraIxButtonTest {
     fun woodenButtonsAreRedstoneComponents() {
         for (name in listOf("oak_button", "minecraft:warped_button", "minecraft:polished_blackstone_button")) {
             val state = mcData.requireBlock(name).defaultState
-            assertEquals(BlockKind.Button, BlockStates.kindOf(state), "$name should be a button")
+            assertTrue(BlockStates.isButton(state), "$name should be a button")
         }
         assertEquals(10, BlockStates.buttonDuration(Blocks.StoneButton.defaultState))
         assertEquals(10, BlockStates.buttonDuration(Blocks.PolishedBlackstoneButton.defaultState))
