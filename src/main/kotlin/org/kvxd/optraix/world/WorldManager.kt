@@ -20,15 +20,15 @@ class ManagedWorld(
         private set
 
     var compiling: Boolean = false
-    var lastEditCounter: Long = 0L
-    var lastEditAt: Long = 0L
+    var lastMutationCounter: Long = 0L
+    var lastMutationAt: Long = 0L
     val plateHeldUntil = HashMap<Long, Long>()
 
     fun useEngine(next: RedstoneEngine) {
         engine = next
         interaction = Interaction(next)
-        lastEditCounter = (next as? OptraIxEngine)?.changeCounter ?: 0L
-        lastEditAt = 0L
+        lastMutationCounter = (next as? OptraIxEngine)?.mutationCounter ?: 0L
+        lastMutationAt = 0L
     }
 }
 

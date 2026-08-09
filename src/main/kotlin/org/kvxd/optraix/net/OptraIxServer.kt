@@ -350,15 +350,15 @@ class OptraIxServer(val config: ServerConfig) {
         for (runtime in worlds.all()) {
             val optraix = runtime.engine as? OptraIxEngine ?: continue
             if (optraix.paused || optraix.manualCompileRequired) continue
-            val counter = optraix.changeCounter
-            if (counter != runtime.lastEditCounter) {
-                runtime.lastEditCounter = counter
-                runtime.lastEditAt = now
+            val counter = optraix.mutationCounter
+            if (counter != runtime.lastMutationCounter) {
+                runtime.lastMutationCounter = counter
+                runtime.lastMutationAt = now
                 continue
             }
-            if (runtime.lastEditAt == 0L || optraix.compiled) continue
-            if (now - runtime.lastEditAt < RecompileDelayMillis) continue
-            runtime.lastEditAt = 0L
+            if (runtime.lastMutationAt == 0L || optraix.compiled) continue
+            if (now - runtime.lastMutationAt < RecompileDelayMillis) continue
+            runtime.lastMutationAt = 0L
             compileRedstone(runtime, optraix)
         }
     }
@@ -1155,8 +1155,21 @@ class OptraIxServer(val config: ServerConfig) {
                 ContainerScreens.close(player)
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundWindowClickPacket -> {
                 if (packet.windowId.toInt() == ContainerScreens.WindowId) {
-                    for (changed in packet.changedSlots) {
-                        ContainerScreens.applyClick(world, player, changed.location.toInt(), changed.item)
+                    val containerPos = player.openContainer
+                    if (containerPos != null && packet.changedSlots.isNotEmpty()) {
+                        val engine = engineFor(player)
+                        engine.mutate(world) {
+                            var changedContainer = false
+                            for (changed in packet.changedSlots) {
+                                changedContainer = ContainerScreens.applyClick(
+                                    this,
+                                    player,
+                                    changed.location.toInt(),
+                                    changed.item,
+                                ) || changedContainer
+                            }
+                            if (changedContainer) engine.updateSurroundingBlocks(this, containerPos)
+                        }
                     }
                 } else if (packet.windowId.toInt() == 0) {
                     for (changed in packet.changedSlots) {

@@ -16,6 +16,7 @@ import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.SlabType
 import org.kvxd.optraix.block.property.TrapdoorHalf
 import org.kvxd.optraix.redstone.RedstoneEngine
+import org.kvxd.optraix.redstone.WorldMutationContext
 import org.kvxd.optraix.worldedit.Directions
 import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
@@ -44,20 +45,22 @@ class Interaction(private val redstone: RedstoneEngine) {
                 val pickles = BlockStates.level[state].toInt()
                 if (itemInHand?.name == "minecraft:sea_pickle" && pickles < 4) {
                     val type = Blocks.typeOf(state)
-                    redstone.beforeBlockChange(world, pos)
-                    world.setBlock(
-                        pos,
-                        type.withValue(state, type.requireProperty("pickles"), (pickles + 1).toString()),
-                    )
+                    redstone.mutate(world) {
+                        setBlock(
+                            pos,
+                            type.withValue(state, type.requireProperty("pickles"), (pickles + 1).toString()),
+                        )
+                    }
                 }
                 ActionResult.Success
             }
             BlockKind.EndPortalFrame -> {
                 if (itemInHand?.name == "minecraft:ender_eye" && !BlockStates.eye[state]) {
                     val type = Blocks.typeOf(state)
-                    redstone.beforeBlockChange(world, pos)
-                    world.setBlock(pos, type.withValue(state, type.requireProperty("eye"), "true"))
-                    redstone.updateSurroundingBlocks(world, pos)
+                    redstone.mutate(world) {
+                        setBlock(pos, type.withValue(state, type.requireProperty("eye"), "true"))
+                        redstone.updateSurroundingBlocks(this, pos)
+                    }
                     ActionResult.Success
                 } else {
                     ActionResult.Pass
@@ -201,47 +204,62 @@ class Interaction(private val redstone: RedstoneEngine) {
     }
 
     fun placeInWorld(state: Int, world: World, pos: BlockPos, nbt: NbtTag?) {
-        redstone.beforeBlockChange(world, pos)
-        world.setBlock(pos, state)
+        redstone.mutate(world) {
+            placeInWorld(state, this, pos, nbt)
+        }
+    }
+
+    private fun placeInWorld(
+        state: Int,
+        mutation: WorldMutationContext,
+        pos: BlockPos,
+        nbt: NbtTag?,
+    ) {
+        mutation.setBlock(pos, state)
         if (BlockStates.hasBlockEntity(state)) {
             val fromItem = nbt?.let { BlockEntityNbt.fromItemTag(it, Blocks.nameOf(state)) }
-            if (fromItem != null) world.setBlockEntity(pos, fromItem)
-            else BlockEntities.ensure(world, pos)
+            if (fromItem != null) mutation.setBlockEntity(pos, fromItem)
+            else BlockEntities.ensure(mutation, pos)
         }
-        changeSurroundingBlocks(world, pos)
+        changeSurroundingBlocks(mutation, pos)
         if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
-            redstone.updateWireNeighbors(world, pos)
+            redstone.updateWireNeighbors(mutation, pos)
         } else {
-            redstone.updateSurroundingBlocks(world, pos)
+            redstone.updateSurroundingBlocks(mutation, pos)
         }
     }
 
     fun destroy(state: Int, world: World, pos: BlockPos) {
-        redstone.beforeBlockChange(world, pos)
-        if (BlockStates.hasBlockEntity(state)) world.deleteBlockEntity(pos)
+        redstone.mutate(world) {
+            destroy(state, this, pos)
+        }
+    }
+
+    private fun destroy(state: Int, mutation: WorldMutationContext, pos: BlockPos) {
+        if (BlockStates.hasBlockEntity(state)) mutation.deleteBlockEntity(pos)
 
         when (BlockStates.kindOf(state)) {
             BlockKind.RedstoneWire -> {
-                world.setBlock(pos, Blocks.airState)
-                changeSurroundingBlocks(world, pos)
-                redstone.updateWireNeighbors(world, pos)
+                mutation.setBlock(pos, Blocks.airState)
+                changeSurroundingBlocks(mutation, pos)
+                redstone.updateWireNeighbors(mutation, pos)
             }
             BlockKind.Lever -> {
                 val face = BlockStates.leverFaceOf(state)
                 val facing = BlockStates.directionOf(state) ?: BlockDirection.North
-                world.setBlock(pos, Blocks.airState)
+                mutation.setBlock(pos, Blocks.airState)
                 val target = when (face) {
                     LeverFace.Ceiling -> pos.offset(BlockFace.Top)
                     LeverFace.Floor -> pos.offset(BlockFace.Bottom)
                     LeverFace.Wall -> pos.offset(facing.opposite().blockFace())
                 }
-                changeSurroundingBlocks(world, target)
-                redstone.updateSurroundingBlocks(world, target)
+                changeSurroundingBlocks(mutation, target)
+                redstone.updateSurroundingBlocks(mutation, target)
             }
             else -> {
-                world.setBlock(pos, Blocks.airState)
-                changeSurroundingBlocks(world, pos)
-                redstone.updateSurroundingBlocks(world, pos)
+                mutation.setBlock(pos, Blocks.airState)
+                changeSurroundingBlocks(mutation, pos)
+                redstone.updateSurroundingBlocks(mutation, pos)
             }
         }
     }
@@ -276,27 +294,38 @@ class Interaction(private val redstone: RedstoneEngine) {
         }
     }
 
-    fun change(state: Int, world: World, pos: BlockPos, direction: BlockFace) {
-        if (!isValidPosition(state, world, pos)) {
-            destroy(state, world, pos)
+    private fun change(
+        state: Int,
+        mutation: WorldMutationContext,
+        pos: BlockPos,
+        direction: BlockFace,
+    ) {
+        if (!isValidPosition(state, mutation, pos)) {
+            destroy(state, mutation, pos)
             return
         }
         if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
-            val newState = redstone.wireStateOnNeighborChanged(world, pos, state, direction)
-            if (world.setBlock(pos, newState)) redstone.updateWireNeighbors(world, pos)
+            val newState = redstone.wireStateOnNeighborChanged(mutation, pos, state, direction)
+            if (mutation.setBlock(pos, newState)) redstone.updateWireNeighbors(mutation, pos)
         }
     }
 
     fun changeSurroundingBlocks(world: World, pos: BlockPos) {
+        redstone.mutate(world) {
+            changeSurroundingBlocks(this, pos)
+        }
+    }
+
+    internal fun changeSurroundingBlocks(mutation: WorldMutationContext, pos: BlockPos) {
         for (direction in BlockFace.All) {
             val neighborPos = pos.offset(direction)
-            change(world.getBlock(neighborPos), world, neighborPos, direction)
+            change(mutation.getBlock(neighborPos), mutation, neighborPos, direction)
 
             val upPos = neighborPos.offset(BlockFace.Top)
-            change(world.getBlock(upPos), world, upPos, direction)
+            change(mutation.getBlock(upPos), mutation, upPos, direction)
 
             val downPos = neighborPos.offset(BlockFace.Bottom)
-            change(world.getBlock(downPos), world, downPos, direction)
+            change(mutation.getBlock(downPos), mutation, downPos, direction)
         }
     }
 
@@ -315,10 +344,13 @@ class Interaction(private val redstone: RedstoneEngine) {
         }
 
         if (canPlace && blockPos.y >= WORLD_MIN_Y && blockPos.y < WORLD_MIN_Y + WORLD_HEIGHT) {
-            val state = getStateForPlacement(world, blockPos, item.item, context)
-            val needsSignEditor = (BlockStates.isSign(state) || BlockStates.isWallSign(state)) &&
-                !BlockEntityNbt.hasBlockEntityTag(item.nbt)
-            placeInWorld(state, world, blockPos, item.nbt)
+            var needsSignEditor = false
+            redstone.mutate(world) {
+                val state = getStateForPlacement(this, blockPos, item.item, context)
+                needsSignEditor = (BlockStates.isSign(state) || BlockStates.isWallSign(state)) &&
+                    !BlockEntityNbt.hasBlockEntityTag(item.nbt)
+                placeInWorld(state, this, blockPos, item.nbt)
+            }
             return UseResult(false, openSignEditorAt = if (needsSignEditor) blockPos else null)
         }
         return UseResult(true)

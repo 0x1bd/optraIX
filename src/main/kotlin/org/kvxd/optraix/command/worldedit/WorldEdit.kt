@@ -7,7 +7,9 @@ import org.kvxd.optraix.block.property.BlockFacing
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
-import org.kvxd.optraix.redstone.optraix.OptraIxEngine
+import org.kvxd.optraix.redstone.RecompilePolicy
+import org.kvxd.optraix.redstone.WorldMutationContext
+import org.kvxd.optraix.redstone.WorldMutationOptions
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Clipboard
 import org.kvxd.optraix.worldedit.Region
@@ -38,67 +40,61 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun apply(player: Player, region: Region, mutator: (BlockPos) -> Int?): Int {
         val world = server.worldFor(player)
-        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
-            world,
-            requireManualCompile = region.volume > MaxAutomaticCompileBlocks,
-        )
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         var changed = 0
-        region.forEach { pos ->
-            val next = mutator(pos) ?: return@forEach
-            val current = world.getBlock(pos)
-            if (current == next) return@forEach
-            positions.add(pos.asLong())
-            previous.add(current)
-            world.setBlockSilent(pos, next)
-            changed++
+        server.engineFor(player).mutate(world, mutationOptions(region.volume)) {
+            region.forEach { pos ->
+                val next = mutator(pos) ?: return@forEach
+                val current = getBlock(pos)
+                if (current == next) return@forEach
+                positions.add(pos.asLong())
+                previous.add(current)
+                setBlockSilent(pos, next)
+                changed++
+            }
+            if (changed > 0) refresh(player, this, positions)
         }
         if (changed > 0) {
             player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-            refresh(player, positions)
             resend(player, region.min, region.max)
         }
         return changed
     }
 
-    private fun refresh(player: Player, positions: Collection<Long>) {
+    private fun refresh(player: Player, mutation: WorldMutationContext, positions: Collection<Long>) {
         if (positions.isEmpty()) return
         if (positions.size > MaxRefreshedBlocks) return
 
         val interaction = server.interactionFor(player)
         val engine = server.engineFor(player)
-        val world = server.worldFor(player)
 
         for (packed in positions) {
-            interaction.changeSurroundingBlocks(world, BlockPos.unpack(packed))
+            interaction.changeSurroundingBlocks(mutation, BlockPos.unpack(packed))
         }
         for (packed in positions) {
             val pos = BlockPos.unpack(packed)
-            val state = world.getBlock(pos)
-            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(world, pos)
-            else engine.updateSurroundingBlocks(world, pos)
+            val state = mutation.getBlock(pos)
+            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(mutation, pos)
+            else engine.updateSurroundingBlocks(mutation, pos)
         }
     }
 
-    private fun refresh(player: Player, positions: LongArray, size: Int) {
+    private fun refresh(player: Player, mutation: WorldMutationContext, positions: LongArray, size: Int) {
         if (size == 0) return
         if (size > MaxRefreshedBlocks) return
 
         val interaction = server.interactionFor(player)
         val engine = server.engineFor(player)
-        val world = server.worldFor(player)
 
         for (index in 0 until size) {
-            val packed = positions[index]
-            interaction.changeSurroundingBlocks(world, BlockPos.unpack(packed))
+            interaction.changeSurroundingBlocks(mutation, BlockPos.unpack(positions[index]))
         }
         for (index in 0 until size) {
-            val packed = positions[index]
-            val pos = BlockPos.unpack(packed)
-            val state = world.getBlock(pos)
-            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(world, pos)
-            else engine.updateSurroundingBlocks(world, pos)
+            val pos = BlockPos.unpack(positions[index])
+            val state = mutation.getBlock(pos)
+            if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) engine.updateWireNeighbors(mutation, pos)
+            else engine.updateSurroundingBlocks(mutation, pos)
         }
     }
 
@@ -154,51 +150,51 @@ class WorldEdit(private val server: OptraIxServer) {
         val maximumChanges = if (!includeAir) clipboard.storedBlockCount else clipboard.volume
         val undo = if (maximumChanges <= MaxUndoBlocks) UndoAccumulator(maximumChanges) else null
         val changedChunks = HashSet<Long>()
+        var undoEntry: UndoEntry? = null
         var changed = 0
         if (maximumChanges > 0) {
-            (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
-                world,
-                requireManualCompile = maximumChanges > MaxAutomaticCompileBlocks,
-            )
-        }
+            server.engineFor(player).mutate(world, mutationOptions(maximumChanges.toLong())) {
+                fun paste(index: Int, state: Int) {
+                    val x = index % clipboard.sizeX
+                    val z = (index / clipboard.sizeX) % clipboard.sizeZ
+                    val y = index / (clipboard.sizeX * clipboard.sizeZ)
+                    val pos = BlockPos(base.x + x, base.y + y, base.z + z)
+                    val current = getBlock(pos)
+                    if (current == state) return
+                    if (!setBlockSilent(pos, state)) return
+                    undo?.add(pos.asLong(), current)
+                    changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
+                    changed++
+                }
 
-        fun paste(index: Int, state: Int) {
-            val x = index % clipboard.sizeX
-            val z = (index / clipboard.sizeX) % clipboard.sizeZ
-            val y = index / (clipboard.sizeX * clipboard.sizeZ)
-            val pos = BlockPos(base.x + x, base.y + y, base.z + z)
-            val current = world.getBlock(pos)
-            if (current == state) return
-            if (!world.setBlockSilent(pos, state)) return
-            undo?.add(pos.asLong(), current)
-            changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
-            changed++
-        }
-
-        if (includeAir) {
-            for (y in 0 until clipboard.sizeY) {
-                for (z in 0 until clipboard.sizeZ) {
-                    for (x in 0 until clipboard.sizeX) {
-                        paste(clipboard.index(x, y, z), clipboard[x, y, z])
+                if (includeAir) {
+                    for (y in 0 until clipboard.sizeY) {
+                        for (z in 0 until clipboard.sizeZ) {
+                            for (x in 0 until clipboard.sizeX) {
+                                paste(clipboard.index(x, y, z), clipboard[x, y, z])
+                            }
+                        }
                     }
+                } else {
+                    clipboard.forEachNonAir(::paste)
+                }
+
+                for ((index, entity) in clipboard.blockEntities) {
+                    val x = index % clipboard.sizeX
+                    val z = (index / clipboard.sizeX) % clipboard.sizeZ
+                    val y = index / (clipboard.sizeX * clipboard.sizeZ)
+                    setBlockEntity(BlockPos(base.x + x, base.y + y, base.z + z), entity)
+                }
+
+                if (changed > 0) {
+                    undoEntry = undo?.build()
+                    undoEntry?.let { entry -> refresh(player, this, entry.positions, entry.size) }
                 }
             }
-        } else {
-            clipboard.forEachNonAir(::paste)
-        }
-
-        for ((index, entity) in clipboard.blockEntities) {
-            val x = index % clipboard.sizeX
-            val z = (index / clipboard.sizeX) % clipboard.sizeZ
-            val y = index / (clipboard.sizeX * clipboard.sizeZ)
-            world.setBlockEntity(BlockPos(base.x + x, base.y + y, base.z + z), entity)
         }
 
         if (changed > 0) {
-            undo?.build()?.let { entry ->
-                player.pushUndo(entry)
-                refresh(player, entry.positions, entry.size)
-            }
+            undoEntry?.let(player::pushUndo)
             resendChunks(player, changedChunks)
         }
         return changed
@@ -206,32 +202,30 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun stack(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
         val world = server.worldFor(player)
-        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
-            world,
-            requireManualCompile = region.volume * count > MaxAutomaticCompileBlocks,
-        )
         val step = regionOffset(facing, region)
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         var changed = 0
-        for (iteration in 1..count) {
-            val shift = BlockPos(step.x * iteration, step.y * iteration, step.z * iteration)
-            region.forEach { pos ->
-                val state = world.getBlock(pos)
-                val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
-                val current = world.getBlock(target)
-                if (current != state) {
-                    positions.add(target.asLong())
-                    previous.add(current)
-                    world.setBlockSilent(target, state)
-                    changed++
+        server.engineFor(player).mutate(world, mutationOptions(region.volume * count)) {
+            for (iteration in 1..count) {
+                val shift = BlockPos(step.x * iteration, step.y * iteration, step.z * iteration)
+                region.forEach { pos ->
+                    val state = getBlock(pos)
+                    val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
+                    val current = getBlock(target)
+                    if (current != state) {
+                        positions.add(target.asLong())
+                        previous.add(current)
+                        setBlockSilent(target, state)
+                        changed++
+                    }
+                    getBlockEntity(pos)?.let { setBlockEntity(target, it) }
                 }
-                world.getBlockEntity(pos)?.let { world.setBlockEntity(target, it) }
             }
+            if (changed > 0) refresh(player, this, positions)
         }
         if (changed > 0) {
             player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-            refresh(player, positions)
             resendSpan(player, region, BlockPos(step.x * count, step.y * count, step.z * count))
         }
         return changed
@@ -239,44 +233,46 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun move(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
         val world = server.worldFor(player)
-        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
-            world,
-            requireManualCompile = region.volume > MaxAutomaticCompileBlocks,
-        )
         val step = unitOffset(facing)
         val shift = BlockPos(step.x * count, step.y * count, step.z * count)
-        val snapshot = HashMap<Long, Int>()
-        region.forEach { pos -> snapshot[pos.asLong()] = world.getBlock(pos) }
-
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         val air = Blocks.airState
 
-        region.forEach { pos ->
-            val current = world.getBlock(pos)
-            if (current != air) {
-                positions.add(pos.asLong())
-                previous.add(current)
-                world.setBlockSilent(pos, air)
-            }
-        }
-        for ((packed, state) in snapshot) {
-            val pos = BlockPos.unpack(packed)
-            val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
-            val current = world.getBlock(target)
-            if (current != state) {
-                positions.add(target.asLong())
-                previous.add(current)
-                world.setBlockSilent(target, state)
-            }
-        }
-        player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
-        refresh(player, positions)
-        resendSpan(player, region, shift)
+        server.engineFor(player).mutate(world, mutationOptions(region.volume)) {
+            val snapshot = HashMap<Long, Int>()
+            region.forEach { pos -> snapshot[pos.asLong()] = getBlock(pos) }
 
+            region.forEach { pos ->
+                val current = getBlock(pos)
+                if (current != air) {
+                    positions.add(pos.asLong())
+                    previous.add(current)
+                    setBlockSilent(pos, air)
+                }
+            }
+            for ((packed, state) in snapshot) {
+                val pos = BlockPos.unpack(packed)
+                val target = BlockPos(pos.x + shift.x, pos.y + shift.y, pos.z + shift.z)
+                val current = getBlock(target)
+                if (current != state) {
+                    positions.add(target.asLong())
+                    previous.add(current)
+                    setBlockSilent(target, state)
+                }
+            }
+            if (positions.isNotEmpty()) refresh(player, this, positions)
+        }
+
+        player.pushUndo(UndoEntry(positions.toLongArray(), previous.toIntArray()))
+        refreshSelectionAfterMove(player, region, shift)
+        resendSpan(player, region, shift)
+        return region.volume.toInt()
+    }
+
+    private fun refreshSelectionAfterMove(player: Player, region: Region, shift: BlockPos) {
         player.selectionOne = BlockPos(region.min.x + shift.x, region.min.y + shift.y, region.min.z + shift.z)
         player.selectionTwo = BlockPos(region.max.x + shift.x, region.max.y + shift.y, region.max.z + shift.z)
-        return region.volume.toInt()
     }
 
     fun undo(player: Player): Int? {
@@ -295,18 +291,16 @@ class WorldEdit(private val server: OptraIxServer) {
         val world = server.worldFor(player)
         val replaced = IntArray(entry.positions.size)
         if (entry.size == 0) return UndoEntry(entry.positions, replaced, 0)
-        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
-            world,
-            requireManualCompile = entry.size > MaxAutomaticCompileBlocks,
-        )
         val changedChunks = HashSet<Long>()
-        for (index in 0 until entry.size) {
-            val pos = BlockPos.unpack(entry.positions[index])
-            replaced[index] = world.getBlock(pos)
-            world.setBlockSilent(pos, entry.states[index])
-            changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
+        server.engineFor(player).mutate(world, mutationOptions(entry.size.toLong())) {
+            for (index in 0 until entry.size) {
+                val pos = BlockPos.unpack(entry.positions[index])
+                replaced[index] = getBlock(pos)
+                setBlockSilent(pos, entry.states[index])
+                changedChunks.add(chunkKey(pos.x shr 4, pos.z shr 4))
+            }
+            refresh(player, this, entry.positions, entry.size)
         }
-        refresh(player, entry.positions, entry.size)
         resendChunks(player, changedChunks)
         return UndoEntry(entry.positions, replaced, entry.size)
     }
@@ -335,6 +329,14 @@ class WorldEdit(private val server: OptraIxServer) {
         BlockFacing.Up -> BlockPos(0, 1, 0)
         BlockFacing.Down -> BlockPos(0, -1, 0)
     }
+
+    private fun mutationOptions(changeCount: Long): WorldMutationOptions = WorldMutationOptions(
+        recompilePolicy = if (changeCount > MaxAutomaticCompileBlocks) {
+            RecompilePolicy.Manual
+        } else {
+            RecompilePolicy.Automatic
+        },
+    )
 
     private companion object {
         const val MaxRefreshedBlocks = 250_000

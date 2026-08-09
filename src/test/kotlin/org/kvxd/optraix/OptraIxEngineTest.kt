@@ -101,14 +101,45 @@ class OptraIxEngineTest {
     }
 
     @Test
-    fun structuralChangeDecompilesAutomatically() {
+    fun propagationDoesNotImplicitlyInvalidateCompiledCircuit() {
         val (world, _) = lampWorld()
         val engine = OptraIxEngine()
         assertTrue(engine.compile(world))
-        assertTrue(engine.compiled)
 
         engine.updateSurroundingBlocks(world, BlockPos(3, 1, 0))
-        assertFalse(engine.compiled, "a structural update must fall back to the interpreter")
+
+        assertTrue(engine.compiled)
+    }
+
+    @Test
+    fun worldMutationDecompilesBeforeTheFirstEdit() {
+        val (world, _) = lampWorld()
+        val engine = OptraIxEngine()
+        val pos = BlockPos(5, 1, 0)
+        assertTrue(engine.compile(world))
+
+        engine.mutate(world) {
+            assertFalse(engine.compiled)
+            setBlock(pos, Wire.makeCross(0))
+        }
+
+        assertEquals(BlockKind.RedstoneWire, BlockStates.kindOf(world.getBlock(pos)))
+    }
+
+    @Test
+    fun worldMutationInvalidatesOnceForABatch() {
+        val (world, _) = lampWorld()
+        val engine = OptraIxEngine()
+        assertTrue(engine.compile(world))
+        val before = engine.mutationCounter
+
+        engine.mutate(world) {
+            setBlock(BlockPos(1, 1, 0), Blocks.airState)
+            setBlock(BlockPos(2, 1, 0), Blocks.airState)
+        }
+
+        assertEquals(before + 1, engine.mutationCounter)
+        assertFalse(engine.compiled)
     }
 
     @Test

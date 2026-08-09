@@ -6,7 +6,7 @@ import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.ContainerKind
-import org.kvxd.optraix.world.GameWorld
+import org.kvxd.optraix.redstone.WorldMutationContext
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundOpenWindowPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundWindowItemsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Slot
@@ -42,10 +42,10 @@ object ContainerScreens {
         )
     }
 
-    fun applyClick(world: GameWorld, player: Player, slot: Int, item: Slot) {
-        val pos = player.openContainer ?: return
-        val existing = BlockEntities.ensure(world, pos) as? BlockEntity.Container ?: return
-        if (slot !in 0 until existing.kind.slots) return
+    fun applyClick(world: WorldMutationContext, player: Player, slot: Int, item: Slot): Boolean {
+        val pos = player.openContainer ?: return false
+        val existing = BlockEntities.ensure(world, pos) as? BlockEntity.Container ?: return false
+        if (slot !in 0 until existing.kind.slots) return false
 
         val entries = existing.inventory.filter { it.slot != slot }.toMutableList()
         val itemId = item.itemId
@@ -58,6 +58,7 @@ object ContainerScreens {
             )
         }
         world.setBlockEntity(pos, rebuild(existing.kind, entries))
+        return true
     }
 
     fun close(player: Player) {

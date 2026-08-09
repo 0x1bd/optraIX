@@ -6,6 +6,9 @@ import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
+import org.kvxd.optraix.redstone.RecompilePolicy
+import org.kvxd.optraix.redstone.WorldMutationContext
+import org.kvxd.optraix.redstone.WorldMutationOptions
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.world.BlockPos
@@ -115,21 +118,21 @@ class OptraIxEngine : RedstoneEngine {
         }
     }
 
-    var changeCounter: Long = 0
+    var mutationCounter: Long = 0
         private set
 
-    private fun invalidate(world: World) {
-        changeCounter++
-        if (circuit != null && world is GameWorld) decompile(world)
-    }
-
-    fun worldEdited(world: GameWorld, requireManualCompile: Boolean = false) {
-        if (requireManualCompile) manualCompileRequired = true
-        invalidate(world)
-    }
-
-    override fun beforeBlockChange(world: World, pos: BlockPos) {
-        invalidate(world)
+    override fun beginMutation(
+        world: World,
+        options: WorldMutationOptions,
+    ): WorldMutationContext {
+        mutationCounter++
+        if (options.recompilePolicy == RecompilePolicy.Manual) manualCompileRequired = true
+        if (circuit != null) {
+            val gameWorld = world as? GameWorld
+                ?: error("compiled circuit mutations require a GameWorld")
+            decompile(gameWorld)
+        }
+        return WorldMutationContext(world, options)
     }
 
     override fun tickWorld(world: GameWorld) {
@@ -164,7 +167,7 @@ class OptraIxEngine : RedstoneEngine {
                 }
             }
             if (!mutatesRedstone(world.getBlock(pos))) return MchprsRedstone.onUse(world, pos)
-            invalidate(world)
+            return mutate(world) { MchprsRedstone.onUse(this, pos) }
         }
         return MchprsRedstone.onUse(world, pos)
     }

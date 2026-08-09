@@ -25,7 +25,24 @@ interface RedstoneEngine {
         world.tickScheduled { pos -> tick(world, pos) }
     }
 
-    fun beforeBlockChange(world: World, pos: BlockPos) {}
+    fun beginMutation(
+        world: World,
+        options: WorldMutationOptions = WorldMutationOptions(),
+    ): WorldMutationContext = WorldMutationContext(world, options)
+
+    fun <T> mutate(
+        world: World,
+        options: WorldMutationOptions = WorldMutationOptions(),
+        mutation: WorldMutationContext.() -> T,
+    ): T {
+        check(world !is WorldMutationContext) { "nested world mutation transaction" }
+        val context = beginMutation(world, options)
+        return try {
+            context.mutation()
+        } finally {
+            context.close()
+        }
+    }
 
     fun onUse(world: World, pos: BlockPos): Boolean
 

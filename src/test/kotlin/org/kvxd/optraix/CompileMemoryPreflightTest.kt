@@ -4,6 +4,8 @@ import kotlin.test.Test
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.kvxd.optraix.redstone.RecompilePolicy
+import org.kvxd.optraix.redstone.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.CompileMemoryPreflight
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.GameWorld
@@ -38,7 +40,10 @@ class CompileMemoryPreflightTest {
     fun successfulExplicitCompileClearsManualRequirement() {
         val world = GameWorld()
         val engine = OptraIxEngine()
-        engine.worldEdited(world, requireManualCompile = true)
+        engine.mutate(
+            world,
+            WorldMutationOptions(recompilePolicy = RecompilePolicy.Manual),
+        ) {}
 
         assertTrue(engine.manualCompileRequired)
         assertTrue(engine.compile(world))
