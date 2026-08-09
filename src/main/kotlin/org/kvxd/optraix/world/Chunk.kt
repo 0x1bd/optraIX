@@ -1,6 +1,7 @@
 package org.kvxd.optraix.world
 
-import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+
 
 class Chunk(val x: Int, val z: Int) {
 
@@ -26,13 +27,13 @@ class Chunk(val x: Int, val z: Int) {
     }
 
     fun getBlock(localX: Int, y: Int, localZ: Int): Int {
-        val section = sectionFor(y, false) ?: return Blocks.airState
+        val section = sectionFor(y, false) ?: return Blocks.Air.defaultState
         return section.get(index(localX, y and 15, localZ))
     }
 
     fun setBlock(localX: Int, y: Int, localZ: Int, state: Int): Boolean {
         if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) return false
-        if (state == Blocks.airState && sectionFor(y, false) == null) return false
+        if (state == Blocks.Air.defaultState && sectionFor(y, false) == null) return false
         val section = sectionFor(y, true) ?: return false
         val changed = section.set(index(localX, y and 15, localZ), state)
         if (changed) wireData = null

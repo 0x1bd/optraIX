@@ -2,7 +2,6 @@ package org.kvxd.optraix.redstone.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.property.ComparatorMode
@@ -18,6 +17,7 @@ import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.World
+import org.kvxd.optraix.block.mcData
 
 class OptraIxCompileException(message: String) : RuntimeException(message)
 
@@ -139,7 +139,7 @@ object OptraIxCompiler {
             BlockKind.IronTrapdoor -> NodeType.Trapdoor
             BlockKind.NoteBlock -> NodeType.NoteBlock
             BlockKind.Observer, BlockKind.TripwireHook ->
-                throw OptraIxCompileException("${Blocks.nameOf(state)} is not supported by optraix")
+                throw OptraIxCompileException("${mcData.requireBlockByStateId(state).name} is not supported by optraix")
             else -> -1
         }
     }

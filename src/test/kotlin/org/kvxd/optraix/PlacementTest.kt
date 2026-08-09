@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.Items
 import org.kvxd.optraix.block.property.BlockFace
@@ -13,6 +12,8 @@ import org.kvxd.optraix.world.GameWorld
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class PlacementTest {
 
@@ -60,7 +61,7 @@ class PlacementTest {
             val world = GameWorld()
             val target = BlockPos(index * 4, 0, 0)
             val state = place(world, name, target)
-            if (state == Blocks.airState) failures += name
+            if (state == Blocks.Air.defaultState) failures += name
         }
         assertTrue(failures.isEmpty(), "these items placed as air: $failures")
     }
@@ -70,9 +71,9 @@ class PlacementTest {
         val world = GameWorld()
         val state = place(world, "minecraft:comparator", BlockPos(0, 0, 0))
         assertEquals(
-            Blocks.require("minecraft:comparator"),
-            Blocks.typeOf(state),
-            "expected a comparator, got ${Blocks.describe(state)}",
+            Blocks.Comparator,
+            mcData.requireBlockByStateId(state),
+            "expected a comparator, got ${mcData.describeState(state)}",
         )
     }
 
@@ -80,7 +81,7 @@ class PlacementTest {
     fun signPlacesAsStandingSignOnTopFace() {
         val world = GameWorld()
         val state = place(world, "minecraft:oak_sign", BlockPos(0, 0, 0))
-        assertTrue(BlockStates.isSign(state), "expected a sign, got ${Blocks.describe(state)}")
+        assertTrue(BlockStates.isSign(state), "expected a sign, got ${mcData.describeState(state)}")
     }
 
     @Test
@@ -88,9 +89,9 @@ class PlacementTest {
         val world = GameWorld()
         val state = place(world, "minecraft:furnace", BlockPos(0, 0, 0))
         assertEquals(
-            Blocks.require("minecraft:furnace"),
-            Blocks.typeOf(state),
-            "expected a furnace, got ${Blocks.describe(state)}",
+            Blocks.Furnace,
+            mcData.requireBlockByStateId(state),
+            "expected a furnace, got ${mcData.describeState(state)}",
         )
     }
 }

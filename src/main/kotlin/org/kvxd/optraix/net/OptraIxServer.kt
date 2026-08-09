@@ -12,7 +12,6 @@ import org.kvxd.optraix.Log
 import org.kvxd.optraix.ServerConfig
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.Items
 import org.kvxd.optraix.command.CommandRegistry
@@ -97,6 +96,8 @@ import kotlin.math.floor
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundServerInfoPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingPacket as StatusPingPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundPingPacket as StatusPongPacket
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class OptraIxServer(val config: ServerConfig) {
 
@@ -1231,14 +1232,14 @@ class OptraIxServer(val config: ServerConfig) {
         if (dx * dx + dy * dy + dz * dz > PickBlockRangeSquared) return
 
         val world = worldFor(player)
-        val blockName = Blocks.nameOf(world.getBlock(pos))
+        val blockName = mcData.requireBlockByStateId(world.getBlock(pos)).name
         val itemName = when {
-            blockName == "minecraft:redstone_wire" -> "minecraft:redstone"
-            blockName == "minecraft:redstone_wall_torch" -> "minecraft:redstone_torch"
+            blockName == "redstone_wire" -> "minecraft:redstone"
+            blockName == "redstone_wall_torch" -> "minecraft:redstone_torch"
             blockName.endsWith("_wall_sign") -> blockName.removeSuffix("_wall_sign") + "_sign"
-            blockName == "minecraft:water_cauldron" -> "minecraft:cauldron"
-            blockName == "minecraft:lava_cauldron" -> "minecraft:cauldron"
-            blockName == "minecraft:powder_snow_cauldron" -> "minecraft:cauldron"
+            blockName == "water_cauldron" -> "minecraft:cauldron"
+            blockName == "lava_cauldron" -> "minecraft:cauldron"
+            blockName == "powder_snow_cauldron" -> "minecraft:cauldron"
             else -> blockName
         }
         val item = Items.byName(itemName) ?: return
@@ -1342,7 +1343,7 @@ class OptraIxServer(val config: ServerConfig) {
                     return
                 }
                 val state = world.getBlock(pos)
-                if (state != Blocks.airState) interaction.destroy(state, world, pos)
+                if (state != Blocks.Air.defaultState) interaction.destroy(state, world, pos)
             }
         }
     }

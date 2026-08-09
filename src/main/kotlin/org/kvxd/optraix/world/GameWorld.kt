@@ -1,9 +1,9 @@
 package org.kvxd.optraix.world
 
-import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class GameWorld(
-    val generator: WorldGenerator = WorldGenerator(Blocks.require("minecraft:sandstone").defaultStateId, 0),
+    val generator: WorldGenerator = WorldGenerator(Blocks.Sandstone.defaultState, 0),
 ) : World {
 
     private val chunks = HashMap<Long, Chunk>()
@@ -66,7 +66,7 @@ class GameWorld(
     }
 
     override fun getBlock(pos: BlockPos): Int {
-        if (pos.y < WORLD_MIN_Y || pos.y >= WORLD_MIN_Y + WORLD_HEIGHT) return Blocks.airState
+        if (pos.y < WORLD_MIN_Y || pos.y >= WORLD_MIN_Y + WORLD_HEIGHT) return Blocks.Air.defaultState
         val chunk = chunkAt(pos.x shr 4, pos.z shr 4)
         return chunk.getBlock(pos.x and 15, pos.y, pos.z and 15)
     }

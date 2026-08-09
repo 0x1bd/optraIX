@@ -1,6 +1,7 @@
 package org.kvxd.optraix.world
 
-import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+
 
 interface World {
 
@@ -20,5 +21,5 @@ interface World {
 
     fun playSound(pos: BlockPos, soundId: Int, category: Int, volume: Float, pitch: Float) {}
 
-    fun isAir(pos: BlockPos): Boolean = getBlock(pos) == Blocks.airState
+    fun isAir(pos: BlockPos): Boolean = getBlock(pos) == Blocks.Air.defaultState
 }

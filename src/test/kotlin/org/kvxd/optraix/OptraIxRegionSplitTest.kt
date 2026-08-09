@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.bench.BenchCircuit
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
@@ -15,6 +14,7 @@ import org.kvxd.optraix.world.WorldGenerator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxRegionSplitTest {
 
@@ -56,8 +56,8 @@ class OptraIxRegionSplitTest {
     @Test
     fun longDustRunAcrossARegionBorderKeepsItsSignalLoss() {
         for (start in 4..20) {
-            val world = GameWorld(WorldGenerator(Blocks.airState, 0))
-            val stone = Blocks.require("minecraft:stone").defaultStateId
+            val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
+            val stone = Blocks.Stone.defaultState
             val lamp = BlockPos(start + 15, 1, 0)
             for (x in start..(start + 15)) world.setBlockSilent(BlockPos(x, 0, 0), stone)
             world.setBlockSilent(

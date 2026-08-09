@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
@@ -16,19 +15,21 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class OptraIxButtonTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
+    private val stone = Blocks.Stone.defaultState
 
     private fun world(buttonName: String): Pair<GameWorld, BlockPos> {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)
         val button = BlockPos(0, 1, 0)
         world.setBlockSilent(
             button,
             BlockStates.buttonStateFor(
-                Blocks.require(buttonName), LeverFace.Floor, BlockDirection.North, false,
+                mcData.requireBlock(buttonName), LeverFace.Floor, BlockDirection.North, false,
             ),
         )
         val dusts = (1..3).map { BlockPos(it, 1, 0) }
@@ -45,18 +46,18 @@ class OptraIxButtonTest {
 
     @Test
     fun woodenButtonsAreRedstoneComponents() {
-        for (name in listOf("minecraft:oak_button", "minecraft:warped_button", "minecraft:polished_blackstone_button")) {
-            val state = Blocks.require(name).defaultStateId
+        for (name in listOf("oak_button", "minecraft:warped_button", "minecraft:polished_blackstone_button")) {
+            val state = mcData.requireBlock(name).defaultState
             assertEquals(BlockKind.Button, BlockStates.kindOf(state), "$name should be a button")
         }
-        assertEquals(10, BlockStates.buttonDuration(Blocks.require("minecraft:stone_button").defaultStateId))
-        assertEquals(10, BlockStates.buttonDuration(Blocks.require("minecraft:polished_blackstone_button").defaultStateId))
-        assertEquals(15, BlockStates.buttonDuration(Blocks.require("minecraft:oak_button").defaultStateId))
+        assertEquals(10, BlockStates.buttonDuration(Blocks.StoneButton.defaultState))
+        assertEquals(10, BlockStates.buttonDuration(Blocks.PolishedBlackstoneButton.defaultState))
+        assertEquals(15, BlockStates.buttonDuration(Blocks.OakButton.defaultState))
     }
 
     @Test
     fun woodenButtonDrivesTheCircuit() {
-        val (world, button) = world("minecraft:oak_button")
+        val (world, button) = world("oak_button")
         val engine = OptraIxEngine()
         assertTrue(engine.compile(world), "compile should succeed: ${engine.lastError}")
 
@@ -66,7 +67,7 @@ class OptraIxButtonTest {
         assertTrue(engine.onUse(world, button), "button press should be handled")
         engine.tickWorld(world)
         assertTrue(BlockStates.powered[world.getBlock(button)], "button should be pressed")
-        assertEquals("minecraft:oak_button", Blocks.nameOf(world.getBlock(button)), "block type must be preserved")
+        assertEquals("oak_button", mcData.requireBlockByStateId(world.getBlock(button)).name, "block type must be preserved")
         assertTrue(BlockStates.lit[world.getBlock(lamp)], "lamp should light from a wooden button")
 
         repeat(13) { engine.tickWorld(world) }
@@ -77,7 +78,7 @@ class OptraIxButtonTest {
 
     @Test
     fun buttonsMatchInterpreter() {
-        for (name in listOf("minecraft:oak_button", "minecraft:stone_button")) {
+        for (name in listOf("oak_button", "minecraft:stone_button")) {
             val (reference, button) = world(name)
             val (candidate, _) = world(name)
             val engine = OptraIxEngine()

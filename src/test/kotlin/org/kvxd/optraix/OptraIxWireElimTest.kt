@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler

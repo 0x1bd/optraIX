@@ -1,7 +1,6 @@
 package org.kvxd.optraix.bench
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
@@ -9,6 +8,7 @@ import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WorldGenerator
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class BenchCircuit(
     val world: GameWorld,
@@ -22,10 +22,10 @@ class BenchCircuit(
 
     companion object {
 
-        private val stone = Blocks.require("minecraft:stone").defaultStateId
+        private val stone = Blocks.Stone.defaultState
 
         fun busses(lanes: Int, segments: Int, seed: Long = 7L): BenchCircuit {
-            val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+            val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
             val levers = ArrayList<BlockPos>(lanes)
             val dustPositions = ArrayList<BlockPos>(lanes * segments * 4)
             var repeaters = 0

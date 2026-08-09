@@ -9,6 +9,8 @@ import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.SlabType
 import org.kvxd.optraix.block.property.TrapdoorHalf
 import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.kmcprotocol.data.BlockData
 
 object BlockStates {
 
@@ -19,24 +21,24 @@ object BlockStates {
 
     private val wallSignFacingNames = listOf(
         "oak", "spruce", "birch", "acacia", "jungle", "dark_oak", "crimson", "warped",
-    ).map { "minecraft:${it}_wall_sign" }.toHashSet()
+    ).map { "${it}_wall_sign" }.toHashSet()
 
-    private val shortButtonNames = setOf("minecraft:stone_button", "minecraft:polished_blackstone_button")
+    private val shortButtonNames = setOf("stone_button", "polished_blackstone_button")
 
     private val pressurePlateNames = listOf(
         "oak", "spruce", "birch", "jungle", "acacia", "dark_oak", "mangrove", "cherry",
         "bamboo", "crimson", "warped", "polished_blackstone", "stone",
-    ).map { "minecraft:${it}_pressure_plate" }.toHashSet()
+    ).map { "${it}_pressure_plate" }.toHashSet()
 
     private val placeableInNames = hashSetOf(
-        "minecraft:air", "minecraft:void_air", "minecraft:cave_air",
-        "minecraft:water", "minecraft:lava",
-        "minecraft:short_grass", "minecraft:fern", "minecraft:dead_bush",
-        "minecraft:seagrass", "minecraft:tall_seagrass",
-        "minecraft:tall_grass", "minecraft:large_fern",
+        "air", "void_air", "cave_air",
+        "water", "lava",
+        "short_grass", "fern", "dead_bush",
+        "seagrass", "tall_seagrass",
+        "tall_grass", "large_fern",
     )
 
-    private val count = Blocks.stateCount
+    private val count = mcData.blockStateCount
 
     val kind = ByteArray(count)
     val solid = BooleanArray(count)
@@ -71,24 +73,24 @@ object BlockStates {
     val wireEast = ByteArray(count)
     val wireWest = ByteArray(count)
 
-    val wireType = Blocks.require("minecraft:redstone_wire")
-    val repeaterType = Blocks.require("minecraft:repeater")
-    val comparatorType = Blocks.require("minecraft:comparator")
-    val leverType = Blocks.require("minecraft:lever")
-    val buttonType = Blocks.require("minecraft:stone_button")
-    val torchType = Blocks.require("minecraft:redstone_torch")
-    val wallTorchType = Blocks.require("minecraft:redstone_wall_torch")
-    val lampType = Blocks.require("minecraft:redstone_lamp")
-    val noteBlockType = Blocks.require("minecraft:note_block")
-    val trapdoorType = Blocks.require("minecraft:iron_trapdoor")
-    val observerType = Blocks.require("minecraft:observer")
-    val tripwireHookType = Blocks.require("minecraft:tripwire_hook")
-    val targetType = Blocks.require("minecraft:target")
-    val seaPickleType = Blocks.require("minecraft:sea_pickle")
-    val endPortalFrameType = Blocks.require("minecraft:end_portal_frame")
-    val furnaceType = Blocks.require("minecraft:furnace")
-    val hopperType = Blocks.require("minecraft:hopper")
-    val barrelType = Blocks.require("minecraft:barrel")
+    val wireType = Blocks.RedstoneWire
+    val repeaterType = Blocks.Repeater
+    val comparatorType = Blocks.Comparator
+    val leverType = Blocks.Lever
+    val buttonType = Blocks.StoneButton
+    val torchType = Blocks.RedstoneTorch
+    val wallTorchType = Blocks.RedstoneWallTorch
+    val lampType = Blocks.RedstoneLamp
+    val noteBlockType = Blocks.NoteBlock
+    val trapdoorType = Blocks.IronTrapdoor
+    val observerType = Blocks.Observer
+    val tripwireHookType = Blocks.TripwireHook
+    val targetType = Blocks.Target
+    val seaPickleType = Blocks.SeaPickle
+    val endPortalFrameType = Blocks.EndPortalFrame
+    val furnaceType = Blocks.Furnace
+    val hopperType = Blocks.Hopper
+    val barrelType = Blocks.Barrel
 
     private val wireNorthProp = wireType.requireProperty("north")
     private val wireSouthProp = wireType.requireProperty("south")
@@ -130,62 +132,61 @@ object BlockStates {
 
     private val targetPowerProp = targetType.requireProperty("power")
 
-    val airState = Blocks.airState
+    val airState = Blocks.Air.defaultState
 
     init {
-        for (type in Blocks.types) {
-            val attributes = type.attributes
+        for (type in mcData.blocks) {
             val name = type.name
             val isSign = name.endsWith("_sign") && !name.endsWith("_wall_sign") &&
-                signNames.any { name == "minecraft:${it}_sign" }
-            val isWallSign = signNames.any { name == "minecraft:${it}_wall_sign" }
+                signNames.any { name == "${it}_sign" }
+            val isWallSign = signNames.any { name == "${it}_wall_sign" }
             val isPlate = name in pressurePlateNames
             val typeKind = when {
-                name == "minecraft:air" -> BlockKind.Air
-                name == "minecraft:redstone_wire" -> BlockKind.RedstoneWire
-                name == "minecraft:redstone_torch" -> BlockKind.RedstoneTorch
-                name == "minecraft:redstone_wall_torch" -> BlockKind.RedstoneWallTorch
-                name == "minecraft:redstone_block" -> BlockKind.RedstoneBlock
-                name == "minecraft:lever" -> BlockKind.Lever
+                name == "air" -> BlockKind.Air
+                name == "redstone_wire" -> BlockKind.RedstoneWire
+                name == "redstone_torch" -> BlockKind.RedstoneTorch
+                name == "redstone_wall_torch" -> BlockKind.RedstoneWallTorch
+                name == "redstone_block" -> BlockKind.RedstoneBlock
+                name == "lever" -> BlockKind.Lever
                 name.endsWith("_button") -> BlockKind.Button
-                name == "minecraft:repeater" -> BlockKind.Repeater
-                name == "minecraft:comparator" -> BlockKind.Comparator
-                name == "minecraft:redstone_lamp" -> BlockKind.RedstoneLamp
-                name == "minecraft:observer" -> BlockKind.Observer
-                name == "minecraft:tripwire_hook" -> BlockKind.TripwireHook
-                name == "minecraft:target" -> BlockKind.Target
-                name == "minecraft:iron_trapdoor" -> BlockKind.IronTrapdoor
-                name == "minecraft:note_block" -> BlockKind.NoteBlock
-                name == "minecraft:barrel" -> BlockKind.Barrel
-                name == "minecraft:chest" -> BlockKind.Chest
-                name == "minecraft:furnace" -> BlockKind.Furnace
-                name == "minecraft:hopper" -> BlockKind.Hopper
-                name == "minecraft:cauldron" -> BlockKind.Cauldron
-                name == "minecraft:water_cauldron" -> BlockKind.WaterCauldron
-                name == "minecraft:composter" -> BlockKind.Composter
-                name == "minecraft:cake" -> BlockKind.Cake
-                name == "minecraft:end_portal_frame" -> BlockKind.EndPortalFrame
-                name == "minecraft:sea_pickle" -> BlockKind.SeaPickle
-                name == "minecraft:smooth_stone_slab" || name == "minecraft:quartz_slab" -> BlockKind.Slab
+                name == "repeater" -> BlockKind.Repeater
+                name == "comparator" -> BlockKind.Comparator
+                name == "redstone_lamp" -> BlockKind.RedstoneLamp
+                name == "observer" -> BlockKind.Observer
+                name == "tripwire_hook" -> BlockKind.TripwireHook
+                name == "target" -> BlockKind.Target
+                name == "iron_trapdoor" -> BlockKind.IronTrapdoor
+                name == "note_block" -> BlockKind.NoteBlock
+                name == "barrel" -> BlockKind.Barrel
+                name == "chest" -> BlockKind.Chest
+                name == "furnace" -> BlockKind.Furnace
+                name == "hopper" -> BlockKind.Hopper
+                name == "cauldron" -> BlockKind.Cauldron
+                name == "water_cauldron" -> BlockKind.WaterCauldron
+                name == "composter" -> BlockKind.Composter
+                name == "cake" -> BlockKind.Cake
+                name == "end_portal_frame" -> BlockKind.EndPortalFrame
+                name == "sea_pickle" -> BlockKind.SeaPickle
+                name == "smooth_stone_slab" || name == "quartz_slab" -> BlockKind.Slab
                 isPlate -> BlockKind.PressurePlate
                 isSign -> BlockKind.Sign
                 isWallSign -> BlockKind.WallSign
                 else -> BlockKind.Other
             }
 
-            val staticSolid = "solid" in attributes
-            val staticCube = "cube" in attributes
-            val staticTransparent = "transparent" in attributes
+            val staticSolid = name in BlockAttributes.solid
+            val staticCube = name in BlockAttributes.cube
+            val staticTransparent = name in BlockAttributes.transparent
             val placeable = name in placeableInNames
             val slabTypeProp = type.property("type")
 
             for (state in type.minStateId..type.maxStateId) {
                 kind[state] = typeKind.ordinal.toByte()
                 placeableIn[state] = placeable
-                stoneMaterial[state] = "stone" in attributes
-                woodMaterial[state] = "wood" in attributes
-                woolMaterial[state] = "wool" in attributes
-                glassMaterial[state] = "glass" in attributes
+                stoneMaterial[state] = name in BlockAttributes.stone
+                woodMaterial[state] = name in BlockAttributes.wood
+                woolMaterial[state] = name in BlockAttributes.wool
+                glassMaterial[state] = name in BlockAttributes.glass
 
                 if (typeKind == BlockKind.Slab && slabTypeProp != null) {
                     val slab = SlabType.valueOf(
@@ -312,7 +313,7 @@ object BlockStates {
     }
 
     fun wallSignFacing(state: Int): BlockDirection? =
-        if (kindOf(state) == BlockKind.WallSign && Blocks.nameOf(state) in wallSignFacingNames)
+        if (kindOf(state) == BlockKind.WallSign && mcData.requireBlockByStateId(state).name in wallSignFacingNames)
             directionOf(state) else null
 
     fun pressurePlatePowered(state: Int): Boolean? =
@@ -410,9 +411,9 @@ object BlockStates {
         (if (waterlogged) 0 else 1) * trapdoorWaterloggedProp.stride
 
     fun buttonDuration(state: Int): Int =
-        if (Blocks.nameOf(state) in shortButtonNames) 10 else 15
+        if (mcData.requireBlockByStateId(state).name in shortButtonNames) 10 else 15
 
-    fun buttonStateFor(type: BlockType, face: LeverFace, facing: BlockDirection, powered: Boolean): Int =
+    fun buttonStateFor(type: BlockData, face: LeverFace, facing: BlockDirection, powered: Boolean): Int =
         type.stateOf(
             mapOf(
                 "face" to face.name.lowercase(),
@@ -422,19 +423,19 @@ object BlockStates {
         )
 
     fun withPowered(state: Int, value: Boolean): Int {
-        val type = Blocks.typeOf(state)
+        val type = mcData.requireBlockByStateId(state)
         val property = type.property("powered") ?: return state
         return type.withValue(state, property, if (value) "true" else "false")
     }
 
     fun withDirection(state: Int, value: BlockDirection): Int {
-        val type = Blocks.typeOf(state)
+        val type = mcData.requireBlockByStateId(state)
         val property = type.property("facing") ?: return state
         return type.withValue(state, property, value.name.lowercase())
     }
 
     fun withFacing(state: Int, value: BlockFacing): Int {
-        val type = Blocks.typeOf(state)
+        val type = mcData.requireBlockByStateId(state)
         val property = type.property("facing") ?: return state
         return type.withValue(state, property, value.name.lowercase())
     }

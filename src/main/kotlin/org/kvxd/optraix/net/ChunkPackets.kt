@@ -8,13 +8,13 @@ import org.kvxd.kmcprotocol.extensions.chunk.PaletteKind
 import org.kvxd.kmcprotocol.extensions.chunk.PalettedContainer
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundMapChunkPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.ChunkBlockEntity
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.Chunk
 import org.kvxd.optraix.world.ChunkSection
 import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkSection as WireChunkSection
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 object ChunkPackets {
 
@@ -34,7 +34,7 @@ object ChunkPackets {
         WireChunkSection(
             blockCount = 0,
             fluidCount = 0,
-            blockStates = PalettedContainer.ofSingleValue(PaletteKind.BlockStates, Blocks.airState),
+            blockStates = PalettedContainer.ofSingleValue(PaletteKind.BlockStates, Blocks.Air.defaultState),
             biomes = airBiomes,
         ).write(writer, format)
         writer.toByteArray()
@@ -53,7 +53,7 @@ object ChunkPackets {
 
     private fun isAir(section: ChunkSection?): Boolean =
         section == null ||
-                (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.airState)
+                (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.Air.defaultState)
 
     private fun wireSection(section: ChunkSection): WireChunkSection {
         val blockStates = when {

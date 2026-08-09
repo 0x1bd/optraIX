@@ -2,7 +2,6 @@ package org.kvxd.optraix.command.worldedit
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockFacing
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.net.OptraIxServer
@@ -14,6 +13,7 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Clipboard
 import org.kvxd.optraix.worldedit.Region
 import org.kvxd.optraix.worldedit.UndoEntry
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class WorldEdit(private val server: OptraIxServer) {
 
@@ -237,7 +237,7 @@ class WorldEdit(private val server: OptraIxServer) {
         val shift = BlockPos(step.x * count, step.y * count, step.z * count)
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
-        val air = Blocks.airState
+        val air = Blocks.Air.defaultState
 
         server.engineFor(player).mutate(world, mutationOptions(region.volume)) {
             val snapshot = HashMap<Long, Int>()

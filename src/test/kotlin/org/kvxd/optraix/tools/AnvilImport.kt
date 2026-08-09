@@ -3,7 +3,6 @@ package org.kvxd.optraix.tools
 import net.lenni0451.mcstructs.nbt.tags.CompoundTag
 import net.lenni0451.mcstructs.nbt.tags.ListTag
 import net.lenni0451.mcstructs.nbt.tags.LongArrayTag
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.nbt.NbtIo
 import org.kvxd.optraix.nbt.asStringOrNull
 import org.kvxd.optraix.nbt.tag
@@ -24,6 +23,8 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.util.zip.GZIPInputStream
 import java.util.zip.InflaterInputStream
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 object AnvilImport {
 
@@ -46,12 +47,12 @@ object AnvilImport {
     }
 
     private val redstoneNames = setOf(
-        "minecraft:redstone_wire", "minecraft:repeater", "minecraft:comparator",
-        "minecraft:redstone_torch", "minecraft:redstone_wall_torch", "minecraft:redstone_lamp",
-        "minecraft:lever", "minecraft:stone_button", "minecraft:redstone_block",
-        "minecraft:observer", "minecraft:target", "minecraft:tripwire_hook",
-        "minecraft:note_block", "minecraft:iron_trapdoor", "minecraft:sticky_piston",
-        "minecraft:piston", "minecraft:slime_block", "minecraft:honey_block",
+        "redstone_wire", "repeater", "comparator",
+        "redstone_torch", "redstone_wall_torch", "redstone_lamp",
+        "lever", "stone_button", "redstone_block",
+        "observer", "target", "tripwire_hook",
+        "note_block", "iron_trapdoor", "sticky_piston",
+        "piston", "slime_block", "honey_block",
     )
 
     fun regionFiles(worldDir: File): List<File> =
@@ -75,7 +76,7 @@ object AnvilImport {
     }
 
     private fun stateOf(entry: CompoundTag, cache: HashMap<String, Int>, stats: Stats): Int {
-        val name = entry.string("Name") ?: return Blocks.airState
+        val name = entry.string("Name") ?: return Blocks.Air.defaultState
         val properties = entry.compound("Properties")
         val key = if (properties == null || properties.isEmpty()) {
             name
@@ -89,10 +90,10 @@ object AnvilImport {
             }
         }
         return cache.getOrPut(key) {
-            val parsed = Blocks.parse(key)
+            val parsed = mcData.blockState(key)
             if (parsed == null) {
                 stats.unknown[name] = (stats.unknown[name] ?: 0) + 1
-                Blocks.byName(name)?.defaultStateId ?: Blocks.airState
+                mcData.block(name)?.defaultState ?: Blocks.Air.defaultState
             } else {
                 parsed
             }
@@ -145,7 +146,7 @@ object AnvilImport {
 
             if (data == null) {
                 val single = ids[0]
-                if (single == Blocks.airState) continue
+                if (single == Blocks.Air.defaultState) continue
                 for (local in 0 until 4096) {
                     val y = (sectionY shl 4) + (local shr 8) + yShift
                     if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) continue
@@ -171,7 +172,7 @@ object AnvilImport {
                 val id = ((data[longIndex] ushr shift) and mask).toInt()
                 if (id >= ids.size) continue
                 val state = ids[id]
-                if (state == Blocks.airState) continue
+                if (state == Blocks.Air.defaultState) continue
                 val y = (sectionY shl 4) + (local shr 8) + yShift
                 if (y < WORLD_MIN_Y || y >= WORLD_MIN_Y + WORLD_HEIGHT) continue
                 val x = chunkX * 16 + (local and 15)
@@ -213,7 +214,7 @@ object AnvilImport {
         if (x > stats.maxX) stats.maxX = x
         if (z < stats.minZ) stats.minZ = z
         if (z > stats.maxZ) stats.maxZ = z
-        val name = Blocks.nameOf(state)
+        val name = mcData.requireBlockByStateId(state).name
         if (name in redstoneNames) stats.redstone[name] = (stats.redstone[name] ?: 0) + 1
     }
 
@@ -224,7 +225,7 @@ object AnvilImport {
         val yShift = args.getOrNull(2)?.toInt() ?: 0
         println("importing ${source.name} (yShift=$yShift)")
         val started = System.nanoTime()
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val stats = Stats()
         import(source, yShift, world, stats)
         println("chunks    ${stats.chunks}")

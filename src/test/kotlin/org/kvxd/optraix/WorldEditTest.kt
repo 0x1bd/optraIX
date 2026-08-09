@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
@@ -16,6 +15,8 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class WorldEditTest {
 
@@ -26,7 +27,7 @@ class WorldEditTest {
         server.useEngine(engine)
         val player = player(server)
         player.y = 10.0
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         val blocks = IntArray(250_001) { stone }
         val clipboard = org.kvxd.optraix.worldedit.Clipboard(
             250_001,
@@ -63,8 +64,8 @@ class WorldEditTest {
         val server = server()
         val worldEdit = WorldEdit(server)
         val player = player(server)
-        val stone = Blocks.require("minecraft:stone").defaultStateId
-        val wire = Blocks.require("minecraft:redstone_wire").defaultStateId
+        val stone = Blocks.Stone.defaultState
+        val wire = Blocks.RedstoneWire.defaultState
 
         for (x in 0..3) server.world.setBlock(BlockPos(x, 0, 0), stone)
 
@@ -85,7 +86,7 @@ class WorldEditTest {
         val server = server()
         val worldEdit = WorldEdit(server)
         val player = player(server)
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
 
         for (x in 0..4) server.world.setBlock(BlockPos(x, 0, 0), stone)
         for (x in 1..4) {
@@ -98,7 +99,7 @@ class WorldEditTest {
 
         player.selectionOne = BlockPos(0, 1, 0)
         player.selectionTwo = BlockPos(0, 1, 0)
-        val redstoneBlock = Blocks.require("minecraft:redstone_block").defaultStateId
+        val redstoneBlock = Blocks.RedstoneBlock.defaultState
         worldEdit.apply(player, Region(player.selectionOne!!, player.selectionTwo!!)) { redstoneBlock }
         tick(server, 2)
 
@@ -114,7 +115,7 @@ class WorldEditTest {
         val server = server()
         val worldEdit = WorldEdit(server)
         val player = player(server)
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
 
         for (x in 0..4) server.world.setBlock(BlockPos(x, 0, 0), stone)
         for (x in 1..4) {
@@ -126,7 +127,7 @@ class WorldEditTest {
 
         player.selectionOne = BlockPos(0, 1, 0)
         player.selectionTwo = BlockPos(0, 1, 0)
-        val redstoneBlock = Blocks.require("minecraft:redstone_block").defaultStateId
+        val redstoneBlock = Blocks.RedstoneBlock.defaultState
         worldEdit.apply(player, Region(player.selectionOne!!, player.selectionTwo!!)) { redstoneBlock }
         tick(server, 2)
         assertEquals(15, Wire.power(server.world.getBlock(BlockPos(1, 1, 0))))
@@ -134,7 +135,7 @@ class WorldEditTest {
         worldEdit.undo(player)
         tick(server, 2)
 
-        assertEquals(Blocks.airState, server.world.getBlock(BlockPos(0, 1, 0)))
+        assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(0, 1, 0)))
         assertEquals(
             0, Wire.power(server.world.getBlock(BlockPos(1, 1, 0))),
             "undo must also settle the circuit back down",
@@ -146,7 +147,7 @@ class WorldEditTest {
         val server = server()
         val worldEdit = WorldEdit(server)
         val player = player(server)
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
 
         for (x in 0..2) for (z in -1..1) server.world.setBlock(BlockPos(x, 0, z), stone)
         val comparatorPos = BlockPos(1, 1, 0)
@@ -179,8 +180,8 @@ class WorldEditTest {
             player.blockPos.z + clipboard.offset.z,
         )
         assertTrue(
-            Blocks.typeOf(server.world.getBlock(target)) == Blocks.require("minecraft:comparator"),
-            "expected a comparator at $target, got ${Blocks.describe(server.world.getBlock(target))}",
+            mcData.requireBlockByStateId(server.world.getBlock(target)) == Blocks.Comparator,
+            "expected a comparator at $target, got ${mcData.describeState(server.world.getBlock(target))}",
         )
         val pasted = server.world.getBlockEntity(target)
         assertTrue(

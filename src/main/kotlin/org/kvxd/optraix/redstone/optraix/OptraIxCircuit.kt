@@ -1,7 +1,6 @@
 package org.kvxd.optraix.redstone.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.Instrument
@@ -11,6 +10,7 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World
+import org.kvxd.optraix.block.mcData
 
 class OptraIxCircuit internal constructor(
     val count: Int,
@@ -569,7 +569,7 @@ class OptraIxCircuit internal constructor(
     }
 
     private fun trapdoorState(base: Int, powered: Boolean): Int {
-        val blockType = Blocks.typeOf(base)
+        val blockType = mcData.requireBlockByStateId(base)
         val value = if (powered) "true" else "false"
         var result = blockType.withValue(base, blockType.requireProperty("powered"), value)
         result = blockType.withValue(result, blockType.requireProperty("open"), value)

@@ -2,7 +2,6 @@ package org.kvxd.optraix.bench
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
 import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
@@ -12,6 +11,7 @@ import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.WorldGenerator
 import org.kvxd.optraix.world.WorldStorage
 import java.io.File
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 object WorldAbBench {
 
@@ -47,7 +47,7 @@ object WorldAbBench {
         val path = args.getOrNull(0) ?: "worlds/cpu-22-08-2025.world"
         val leverCount = (args.getOrNull(1) ?: "8").toInt()
 
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val chunks = WorldStorage.load(world, File(path))
         println("loaded $path: $chunks chunks")
 

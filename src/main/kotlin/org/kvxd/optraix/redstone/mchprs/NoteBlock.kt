@@ -2,10 +2,11 @@ package org.kvxd.optraix.redstone.mchprs
 
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.Instrument
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.World
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 object NoteBlock {
 
@@ -15,29 +16,29 @@ object NoteBlock {
     )
 
     fun isUnblocked(world: World, pos: BlockPos): Boolean =
-        world.getBlock(pos.offset(BlockFace.Top)) == Blocks.airState
+        world.getBlock(pos.offset(BlockFace.Top)) == Blocks.Air.defaultState
 
     fun instrumentAt(world: World, pos: BlockPos): Instrument =
         instrumentFromBlockBelow(world.getBlock(pos.offset(BlockFace.Bottom)))
 
     fun instrumentFromBlockBelow(state: Int): Instrument {
-        val name = Blocks.nameOf(state)
+        val name = mcData.requireBlockByStateId(state).name
         return when {
             BlockStates.stoneMaterial[state] -> Instrument.Basedrum
-            name == "minecraft:sand" -> Instrument.Snare
+            name == "sand" -> Instrument.Snare
             BlockStates.glassMaterial[state] -> Instrument.Hat
             BlockStates.woodMaterial[state] -> Instrument.Bass
-            name == "minecraft:clay" -> Instrument.Flute
-            name == "minecraft:gold_block" -> Instrument.Bell
+            name == "clay" -> Instrument.Flute
+            name == "gold_block" -> Instrument.Bell
             BlockStates.woolMaterial[state] -> Instrument.Guitar
-            name == "minecraft:packed_ice" -> Instrument.Chime
-            name == "minecraft:bone_block" -> Instrument.Xylophone
-            name == "minecraft:iron_block" -> Instrument.IronXylophone
-            name == "minecraft:soul_sand" -> Instrument.CowBell
-            name == "minecraft:pumpkin" -> Instrument.Didgeridoo
-            name == "minecraft:emerald_block" -> Instrument.Bit
-            name == "minecraft:hay_block" -> Instrument.Banjo
-            name == "minecraft:glowstone" -> Instrument.Pling
+            name == "packed_ice" -> Instrument.Chime
+            name == "bone_block" -> Instrument.Xylophone
+            name == "iron_block" -> Instrument.IronXylophone
+            name == "soul_sand" -> Instrument.CowBell
+            name == "pumpkin" -> Instrument.Didgeridoo
+            name == "emerald_block" -> Instrument.Bit
+            name == "hay_block" -> Instrument.Banjo
+            name == "glowstone" -> Instrument.Pling
             else -> Instrument.Harp
         }
     }

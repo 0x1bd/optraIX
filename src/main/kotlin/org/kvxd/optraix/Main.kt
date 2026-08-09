@@ -2,9 +2,9 @@ package org.kvxd.optraix
 
 import kotlinx.coroutines.runBlocking
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.net.OptraIxServer
 import java.util.concurrent.atomic.AtomicBoolean
+import org.kvxd.optraix.block.mcData
 
 fun main(args: Array<String>): Unit = runBlocking {
     val configFile = ServerConfig.defaultConfigFile()
@@ -13,7 +13,7 @@ fun main(args: Array<String>): Unit = runBlocking {
     config.prepareDirectories()
 
     val started = System.currentTimeMillis()
-    val states = Blocks.stateCount
+    val states = mcData.blockStateCount
     BlockStates.airState
     println("loaded $states block states in ${System.currentTimeMillis() - started}ms")
 

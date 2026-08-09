@@ -6,7 +6,6 @@ import net.lenni0451.mcstructs.nbt.tags.ByteArrayTag
 import net.lenni0451.mcstructs.nbt.tags.CompoundTag
 import net.lenni0451.mcstructs.nbt.tags.IntArrayTag
 import net.lenni0451.mcstructs.nbt.tags.ListTag
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.nbt.NbtIo
 import org.kvxd.optraix.nbt.asIntOrNull
 import org.kvxd.optraix.nbt.asStringOrNull
@@ -16,6 +15,8 @@ import org.kvxd.optraix.nbt.list
 import org.kvxd.optraix.nbt.tag
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 object Schematic {
 
@@ -92,10 +93,10 @@ object Schematic {
 
     private fun paletteLookup(palette: CompoundTag): IntArray {
         val maxIndex = palette.value.values.mapNotNull { it.asIntOrNull() }.maxOrNull() ?: 0
-        val lookup = IntArray(maxIndex + 1) { Blocks.airState }
+        val lookup = IntArray(maxIndex + 1) { Blocks.Air.defaultState }
         for ((name, value) in palette) {
             val index = value.asIntOrNull() ?: continue
-            if (index >= 0) lookup[index] = Blocks.parse(name) ?: Blocks.airState
+            if (index >= 0) lookup[index] = mcData.blockState(name) ?: Blocks.Air.defaultState
         }
         return lookup
     }
@@ -125,7 +126,7 @@ object Schematic {
                     continue
                 }
                 if (target >= volume) throw SchematicException("block data contains more entries than the schematic volume")
-                builder.add(target, lookup.getOrElse(value) { Blocks.airState })
+                builder.add(target, lookup.getOrElse(value) { Blocks.Air.defaultState })
                 target++
                 value = 0
                 shift = 0

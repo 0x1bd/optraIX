@@ -35,6 +35,7 @@ dependencies {
 
 kmcProtocol {
     versions("1.20.4")
+    minecraftDataPackage.set("org.kvxd.optraix.mcdata")
 }
 
 kotlin {

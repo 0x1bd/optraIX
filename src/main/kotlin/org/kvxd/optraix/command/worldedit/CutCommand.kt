@@ -1,11 +1,11 @@
 package org.kvxd.optraix.command.worldedit
 
 import com.mojang.brigadier.CommandDispatcher
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class CutCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
@@ -25,7 +25,7 @@ class CutCommand(private val worldEdit: WorldEdit) : ServerCommand {
             return
         }
         worldEdit.copy(source.player, region)
-        val air = Blocks.airState
+        val air = Blocks.Air.defaultState
         val changed = worldEdit.apply(source.player, region) { air }
         source.success("cut $changed blocks")
     }

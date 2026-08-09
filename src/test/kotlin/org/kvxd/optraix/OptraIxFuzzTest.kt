@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
@@ -19,16 +18,17 @@ import java.util.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxFuzzTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
-    private val redstoneBlock = Blocks.require("minecraft:redstone_block").defaultStateId
+    private val stone = Blocks.Stone.defaultState
+    private val redstoneBlock = Blocks.RedstoneBlock.defaultState
 
     private class Built(val world: GameWorld, val levers: List<BlockPos>)
 
     private fun build(seed: Long, rows: Int, length: Int): Built {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val random = Random(seed)
         val levers = ArrayList<BlockPos>()
         val dusts = ArrayList<BlockPos>()
@@ -129,7 +129,7 @@ class OptraIxFuzzTest {
             for (sectionIndex in chunk.sections.indices) {
                 val section = chunk.sections[sectionIndex] ?: continue
                 for (slot in 0 until 4096) {
-                    if (section.get(slot) == Blocks.airState) continue
+                    if (section.get(slot) == Blocks.Air.defaultState) continue
                     positions.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),

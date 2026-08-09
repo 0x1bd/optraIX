@@ -4,7 +4,6 @@ import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.RedstoneEngine
@@ -13,6 +12,7 @@ import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World
+import org.kvxd.optraix.block.mcData
 
 object MchprsRedstone : RedstoneEngine {
 
@@ -176,7 +176,7 @@ object MchprsRedstone : RedstoneEngine {
                 val powered = BlockStates.powered[state]
                 val shouldBePowered = redstoneLampShouldBeLit(world, pos)
                 if (powered != shouldBePowered) {
-                    val type = Blocks.typeOf(state)
+                    val type = mcData.requireBlockByStateId(state)
                     var newState = type.withValue(
                         state, type.requireProperty("powered"), if (shouldBePowered) "true" else "false"
                     )

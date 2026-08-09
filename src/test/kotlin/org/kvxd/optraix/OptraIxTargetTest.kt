@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
@@ -16,14 +15,16 @@ import org.kvxd.optraix.world.WorldGenerator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class OptraIxTargetTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
-    private val target = Blocks.require("minecraft:target").defaultStateId
+    private val stone = Blocks.Stone.defaultState
+    private val target = Blocks.Target.defaultState
 
     private fun build(): Pair<GameWorld, BlockPos> {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..10) {
             world.setBlockSilent(BlockPos(x, 0, 0), stone)
             world.setBlockSilent(BlockPos(x, 0, 1), stone)
@@ -65,7 +66,7 @@ class OptraIxTargetTest {
                 val data = chunk.sections[section] ?: continue
                 for (slot in 0 until 4096) {
                     val state = data.get(slot)
-                    if (state == Blocks.airState || state == stone) continue
+                    if (state == Blocks.Air.defaultState || state == stone) continue
                     if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) continue
                     list.add(
                         BlockPos(
@@ -108,7 +109,7 @@ class OptraIxTargetTest {
         circuit.writeAll(candidate)
 
         val watched = positions(reference)
-        assertTrue(watched.any { Blocks.nameOf(reference.getBlock(it)) == "minecraft:target" })
+        assertTrue(watched.any { mcData.requireBlockByStateId(reference.getBlock(it)).name == "target" })
 
         val leverNode = circuit.nodeAt(lever)
         for (tick in 0 until 40) {
@@ -123,7 +124,7 @@ class OptraIxTargetTest {
                 assertEquals(
                     reference.getBlock(pos),
                     candidate.getBlock(pos),
-                    "tick $tick: mismatch at $pos (${Blocks.nameOf(reference.getBlock(pos))})",
+                    "tick $tick: mismatch at $pos (${mcData.requireBlockByStateId(reference.getBlock(pos)).name})",
                 )
             }
         }

@@ -4,7 +4,6 @@ import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
@@ -18,13 +17,15 @@ import org.kvxd.optraix.world.WorldGenerator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class RedstoneTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
+    private val stone = Blocks.Stone.defaultState
     private val interaction = Interaction(MchprsRedstone)
 
-    private fun emptyWorld(): GameWorld = GameWorld(WorldGenerator(Blocks.airState, 0))
+    private fun emptyWorld(): GameWorld = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
 
     private fun runTicks(world: GameWorld, count: Int) {
         repeat(count) { world.tickScheduled { pos -> MchprsRedstone.tick(world, pos) } }
@@ -40,12 +41,12 @@ class RedstoneTest {
 
     @Test
     fun blockStateIdsMatchVanilla() {
-        assertEquals(1, Blocks.require("minecraft:stone").defaultStateId)
-        assertEquals(535, Blocks.require("minecraft:sandstone").defaultStateId)
-        assertEquals(2978, Blocks.require("minecraft:redstone_wire").minStateId)
-        assertEquals(5881, Blocks.require("minecraft:repeater").minStateId)
-        assertEquals(9175, Blocks.require("minecraft:comparator").minStateId)
-        assertEquals(26644, Blocks.stateCount)
+        assertEquals(1, Blocks.Stone.defaultState)
+        assertEquals(535, Blocks.Sandstone.defaultState)
+        assertEquals(2978, Blocks.RedstoneWire.minStateId)
+        assertEquals(5881, Blocks.Repeater.minStateId)
+        assertEquals(9175, Blocks.Comparator.minStateId)
+        assertEquals(26644, mcData.blockStateCount)
     }
 
     @Test
@@ -68,11 +69,11 @@ class RedstoneTest {
 
     @Test
     fun slabFlagsAreDynamic() {
-        val type = Blocks.require("minecraft:smooth_stone_slab")
+        val type = Blocks.SmoothStoneSlab
         val property = type.requireProperty("type")
-        val top = type.withValue(type.defaultStateId, property, "top")
-        val bottom = type.withValue(type.defaultStateId, property, "bottom")
-        val double = type.withValue(type.defaultStateId, property, "double")
+        val top = type.withValue(type.defaultState, property, "top")
+        val bottom = type.withValue(type.defaultState, property, "bottom")
+        val double = type.withValue(type.defaultState, property, "double")
         assertTrue(BlockStates.isCube(top) && !BlockStates.isSolid(top))
         assertTrue(!BlockStates.isCube(bottom) && BlockStates.isTransparent(bottom))
         assertTrue(BlockStates.isSolid(double) && !BlockStates.isTransparent(double))
@@ -214,7 +215,7 @@ class RedstoneTest {
         )
 
         val inputPos = BlockPos(1, 1, 0)
-        world.setBlock(inputPos, Blocks.require("minecraft:redstone_block").defaultStateId)
+        world.setBlock(inputPos, Blocks.RedstoneBlock.defaultState)
         MchprsRedstone.updateSurroundingBlocks(world, inputPos)
         runTicks(world, 4)
 
@@ -234,7 +235,7 @@ class RedstoneTest {
             BlockStates.comparatorState(BlockDirection.East, ComparatorMode.Subtract, false),
             world, comparatorPos, null,
         )
-        world.setBlock(BlockPos(1, 1, 0), Blocks.require("minecraft:redstone_block").defaultStateId)
+        world.setBlock(BlockPos(1, 1, 0), Blocks.RedstoneBlock.defaultState)
 
         for (z in -3..-1) {
             val pos = BlockPos(0, 1, z)
@@ -261,7 +262,7 @@ class RedstoneTest {
             BlockStates.comparatorState(BlockDirection.East, ComparatorMode.Compare, false),
             world, comparatorPos, null,
         )
-        world.setBlock(BlockPos(1, 1, 0), Blocks.require("minecraft:redstone_block").defaultStateId)
+        world.setBlock(BlockPos(1, 1, 0), Blocks.RedstoneBlock.defaultState)
 
         for (z in -3..-1) {
             val pos = BlockPos(0, 1, z)
@@ -279,7 +280,7 @@ class RedstoneTest {
     @Test
     fun placementValidityMatchesMchprs() {
         val world = emptyWorld()
-        val glass = Blocks.require("minecraft:glass").defaultStateId
+        val glass = Blocks.Glass.defaultState
 
         world.setBlock(BlockPos(0, 0, 0), stone)
         world.setBlock(BlockPos(1, 0, 0), glass)
@@ -318,7 +319,7 @@ class RedstoneTest {
         val target = BlockPos(1, 1, 0)
         interaction.destroy(world.getBlock(target), world, target)
 
-        assertEquals(Blocks.airState, world.getBlock(target))
+        assertEquals(Blocks.Air.defaultState, world.getBlock(target))
         assertTrue(Wire.isCross(world.getBlock(BlockPos(0, 1, 0))), "lone wire should fall back to a cross")
     }
 }

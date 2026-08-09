@@ -1,13 +1,14 @@
 package org.kvxd.optraix.world
 
-import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+
 
 class ChunkSection {
 
     var bitsPerEntry: Int = 0
         internal set
 
-    var palette: IntArray = intArrayOf(Blocks.airState)
+    var palette: IntArray = intArrayOf(Blocks.Air.defaultState)
         internal set
 
     var paletteSize: Int = 1
@@ -65,8 +66,8 @@ class ChunkSection {
     fun set(index: Int, state: Int): Boolean {
         val previous = get(index)
         if (previous == state) return false
-        if (previous == Blocks.airState) blockCount++
-        if (state == Blocks.airState) blockCount--
+        if (previous == Blocks.Air.defaultState) blockCount++
+        if (state == Blocks.Air.defaultState) blockCount--
 
         val raw = if (isDirect) state else indexFor(state)
         writeRaw(index, raw)
@@ -133,15 +134,15 @@ class ChunkSection {
     }
 
     fun fillLayer(y: Int, state: Int) {
-        if (state == Blocks.airState) return
-        if (bitsPerEntry != 0 || palette[0] != Blocks.airState) {
+        if (state == Blocks.Air.defaultState) return
+        if (bitsPerEntry != 0 || palette[0] != Blocks.Air.defaultState) {
             val base = y shl 8
             for (index in base until base + 256) set(index, state)
             return
         }
         bitsPerEntry = 4
         palette = IntArray(1 shl 4).also {
-            it[0] = Blocks.airState
+            it[0] = Blocks.Air.defaultState
             it[1] = state
         }
         paletteSize = 2
@@ -158,7 +159,7 @@ class ChunkSection {
         paletteSize = 1
         paletteIndex = null
         data = LongArray(0)
-        blockCount = if (state == Blocks.airState) 0 else 4096
+        blockCount = if (state == Blocks.Air.defaultState) 0 else 4096
     }
 
     companion object {

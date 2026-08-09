@@ -8,7 +8,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.RotateAmount
 import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
@@ -17,6 +16,7 @@ import org.kvxd.optraix.redstone.optraix.CompileMemoryPreflight
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Schematic
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class SchematicStreamingTest {
 
@@ -27,11 +27,11 @@ class SchematicStreamingTest {
         writeSparseSchematic(file, 30_000)
 
         val clipboard = Schematic.load(file)
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         assertTrue(clipboard.isSparse)
         assertEquals(2, clipboard.storedBlockCount)
         assertEquals(stone, clipboard[0, 0, 0])
-        assertEquals(Blocks.airState, clipboard[15_000, 0, 0])
+        assertEquals(Blocks.Air.defaultState, clipboard[15_000, 0, 0])
         assertEquals(stone, clipboard[29_999, 0, 0])
 
         val rotated = clipboard.rotate(RotateAmount.Rotate90)

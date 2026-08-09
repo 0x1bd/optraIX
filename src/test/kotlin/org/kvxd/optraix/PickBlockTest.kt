@@ -9,12 +9,12 @@ import kotlin.test.assertTrue
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundHeldItemSlotPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundWindowItemsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundPickItemPacket
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.Items
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.world.BlockPos
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class PickBlockTest {
 
@@ -29,7 +29,7 @@ class PickBlockTest {
         server.players += player
 
         val pos = BlockPos(1, 1, 0)
-        server.world.setBlockSilent(pos, Blocks.require("minecraft:redstone_wire").defaultStateId)
+        server.world.setBlockSilent(pos, Blocks.RedstoneWire.defaultState)
         server.pickItemFromBlock(player.uuid, pos, false)
 
         assertEquals("minecraft:redstone", player.heldItem?.item?.name)
@@ -49,7 +49,7 @@ class PickBlockTest {
         server.players += player
 
         val pos = BlockPos(1, 1, 0)
-        val state = Blocks.require("minecraft:sandstone").defaultStateId
+        val state = Blocks.Sandstone.defaultState
         server.world.setBlockSilent(pos, state)
         val sandstone = assertNotNull(org.kvxd.optraix.block.Items.byName("minecraft:sandstone"))
         player.inventory[40] = org.kvxd.optraix.block.ItemStack(sandstone)
@@ -88,7 +88,7 @@ class PickBlockTest {
         server.players += player
 
         val pos = BlockPos(100, 1, 0)
-        server.world.setBlockSilent(pos, Blocks.require("minecraft:sandstone").defaultStateId)
+        server.world.setBlockSilent(pos, Blocks.Sandstone.defaultState)
         server.pickItemFromBlock(player.uuid, pos, false)
 
         assertTrue(player.inventory.all { it == null })

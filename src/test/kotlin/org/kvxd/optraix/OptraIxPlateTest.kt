@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
@@ -13,16 +12,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxPlateTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
+    private val stone = Blocks.Stone.defaultState
 
     private fun world(): Pair<GameWorld, BlockPos> {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)
         val plate = BlockPos(0, 1, 0)
-        world.setBlockSilent(plate, Blocks.require("minecraft:stone_pressure_plate").defaultStateId)
+        world.setBlockSilent(plate, Blocks.StonePressurePlate.defaultState)
         val dusts = (1..3).map { BlockPos(it, 1, 0) }
         for (pos in dusts) {
             world.setBlockSilent(pos, Wire.make(WireSide.None, WireSide.None, WireSide.None, WireSide.None, 0))

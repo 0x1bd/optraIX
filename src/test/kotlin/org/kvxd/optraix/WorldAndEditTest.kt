@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.FlipDirection
 import org.kvxd.optraix.block.property.RotateAmount
 import org.kvxd.optraix.block.property.WireSide
@@ -22,6 +21,8 @@ import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class WorldAndEditTest {
 
@@ -29,7 +30,7 @@ class WorldAndEditTest {
     fun sectionStoresSingleValueWithoutData() {
         val section = ChunkSection()
         assertEquals(0, section.bitsPerEntry)
-        assertEquals(Blocks.airState, section.get(0))
+        assertEquals(Blocks.Air.defaultState, section.get(0))
         assertEquals(0, section.data.size)
     }
 
@@ -55,29 +56,29 @@ class WorldAndEditTest {
     @Test
     fun sectionTracksBlockCount() {
         val section = ChunkSection()
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         section.set(0, stone)
         section.set(1, stone)
         assertEquals(2, section.blockCount)
-        section.set(1, Blocks.airState)
+        section.set(1, Blocks.Air.defaultState)
         assertEquals(1, section.blockCount)
     }
 
     @Test
     fun worldGeneratesFlatSandstoneFloor() {
         val world = GameWorld()
-        val sandstone = Blocks.require("minecraft:sandstone").defaultStateId
+        val sandstone = Blocks.Sandstone.defaultState
         for (pos in listOf(BlockPos(0, 0, 0), BlockPos(-500, 0, 1200), BlockPos(9999, 0, -9999))) {
             assertEquals(sandstone, world.getBlock(pos), "floor missing at $pos")
-            assertEquals(Blocks.airState, world.getBlock(BlockPos(pos.x, 1, pos.z)))
-            assertEquals(Blocks.airState, world.getBlock(BlockPos(pos.x, 200, pos.z)))
+            assertEquals(Blocks.Air.defaultState, world.getBlock(BlockPos(pos.x, 1, pos.z)))
+            assertEquals(Blocks.Air.defaultState, world.getBlock(BlockPos(pos.x, 200, pos.z)))
         }
     }
 
     @Test
     fun worldIsInfiniteInBothDirections() {
         val world = GameWorld()
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         val far = BlockPos(-1_000_000, 64, 1_000_000)
         world.setBlock(far, stone)
         assertEquals(stone, world.getBlock(far))
@@ -109,7 +110,7 @@ class WorldAndEditTest {
     @Test
     fun worldStoresBlocksAtBothEndsOfItsHeight() {
         val world = GameWorld()
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         val bottom = BlockPos(7, WORLD_MIN_Y, -4)
         val top = BlockPos(7, WORLD_MIN_Y + WORLD_HEIGHT - 1, -4)
 
@@ -117,17 +118,17 @@ class WorldAndEditTest {
         assertTrue(world.setBlock(top, stone))
         assertEquals(stone, world.getBlock(bottom))
         assertEquals(stone, world.getBlock(top))
-        assertEquals(Blocks.airState, world.getBlock(top.offset(org.kvxd.optraix.block.property.BlockFace.Top)))
+        assertEquals(Blocks.Air.defaultState, world.getBlock(top.offset(org.kvxd.optraix.block.property.BlockFace.Top)))
     }
 
     @Test
     fun clipboardRotationIsIdentityAfterFourTurns() {
         val world = GameWorld()
         val clipboard = org.kvxd.optraix.worldedit.Clipboard(
-            3, 1, 2, BlockPos(0, 0, 0), IntArray(6) { Blocks.airState }
+            3, 1, 2, BlockPos(0, 0, 0), IntArray(6) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(2, BlockDirection.North, false, false)
-        clipboard[1, 0, 0] = Blocks.require("minecraft:stone").defaultStateId
+        clipboard[1, 0, 0] = Blocks.Stone.defaultState
         clipboard[2, 0, 1] = Wire.make(WireSide.Side, WireSide.None, WireSide.Up, WireSide.None, 5)
 
         var rotated = clipboard
@@ -144,7 +145,7 @@ class WorldAndEditTest {
     @Test
     fun clipboardRotationTurnsRepeaterFacing() {
         val clipboard = org.kvxd.optraix.worldedit.Clipboard(
-            1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.airState }
+            1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(2, BlockDirection.North, false, false)
         val rotated = clipboard.rotate(RotateAmount.Rotate90)
@@ -155,7 +156,7 @@ class WorldAndEditTest {
     @Test
     fun clipboardRotationTurnsWireSides() {
         val clipboard = org.kvxd.optraix.worldedit.Clipboard(
-            1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.airState }
+            1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = Wire.make(WireSide.Side, WireSide.None, WireSide.Up, WireSide.None, 5)
         val rotated = clipboard.rotate(RotateAmount.Rotate90)[0, 0, 0]
@@ -168,10 +169,10 @@ class WorldAndEditTest {
     @Test
     fun clipboardFlipIsSelfInverse() {
         val clipboard = org.kvxd.optraix.worldedit.Clipboard(
-            2, 1, 3, BlockPos(0, 0, 0), IntArray(6) { Blocks.airState }
+            2, 1, 3, BlockPos(0, 0, 0), IntArray(6) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(1, BlockDirection.East, false, false)
-        clipboard[1, 0, 2] = Blocks.require("minecraft:stone").defaultStateId
+        clipboard[1, 0, 2] = Blocks.Stone.defaultState
 
         val twice = clipboard.flip(FlipDirection.FlipX).flip(FlipDirection.FlipX)
         for (index in clipboard.blocks.indices) assertEquals(clipboard.blocks[index], twice.blocks[index])
@@ -190,7 +191,7 @@ class WorldAndEditTest {
         assertEquals(2, clipboard.sizeZ)
         assertEquals(BlockPos(-1, 0, -1), clipboard.offset)
 
-        assertEquals(Blocks.require("minecraft:sandstone").defaultStateId, clipboard[0, 0, 0])
+        assertEquals(Blocks.Sandstone.defaultState, clipboard[0, 0, 0])
 
         val wire = clipboard[1, 0, 0]
         assertEquals(7, Wire.power(wire))
@@ -201,15 +202,15 @@ class WorldAndEditTest {
         assertEquals(3, BlockStates.delay[repeater].toInt())
         assertEquals(BlockDirection.East, BlockStates.directionOf(repeater))
 
-        assertEquals(Blocks.airState, clipboard[1, 1, 1])
-        assertEquals(Blocks.require("minecraft:sandstone").defaultStateId, clipboard[0, 1, 1])
+        assertEquals(Blocks.Air.defaultState, clipboard[1, 1, 1])
+        assertEquals(Blocks.Sandstone.defaultState, clipboard[0, 1, 1])
     }
 
     @Test
     fun chunkEncodesToWireFormatAndBack() {
         val world = GameWorld()
         val chunk = world.chunkAt(3, -7)
-        val sandstone = Blocks.require("minecraft:sandstone").defaultStateId
+        val sandstone = Blocks.Sandstone.defaultState
         val expected = HashMap<Triple<Int, Int, Int>, Int>()
 
         var seed = 12345
@@ -271,14 +272,14 @@ class WorldAndEditTest {
     @Test
     fun parsesBlockStatesFromText() {
         assertEquals(
-            Blocks.require("minecraft:sandstone").defaultStateId,
-            Blocks.parse("sandstone"),
+            Blocks.Sandstone.defaultState,
+            mcData.blockState("sandstone"),
         )
-        val repeater = Blocks.parse("minecraft:repeater[delay=4,facing=west,powered=true]")!!
+        val repeater = mcData.blockState("minecraft:repeater[delay=4,facing=west,powered=true]")!!
         assertEquals(4, BlockStates.delay[repeater].toInt())
         assertEquals(BlockDirection.West, BlockStates.directionOf(repeater))
         assertTrue(BlockStates.powered[repeater])
-        assertEquals(null, Blocks.parse("minecraft:not_a_block"))
+        assertEquals(null, mcData.blockState("minecraft:not_a_block"))
     }
 
     @Test
@@ -286,6 +287,6 @@ class WorldAndEditTest {
         val original = BlockStates.comparatorState(
             BlockDirection.South, org.kvxd.optraix.block.property.ComparatorMode.Subtract, true
         )
-        assertEquals(original, Blocks.parse(Blocks.describe(original)))
+        assertEquals(original, mcData.blockState(mcData.describeState(original)))
     }
 }

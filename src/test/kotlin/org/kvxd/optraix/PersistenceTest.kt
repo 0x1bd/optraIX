@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
@@ -13,6 +12,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class PersistenceTest {
 
@@ -66,7 +66,7 @@ class PersistenceTest {
             assertEquals(state, restored.getBlock(pos), "block lost at $pos")
         }
 
-        val sandstone = Blocks.require("minecraft:sandstone").defaultStateId
+        val sandstone = Blocks.Sandstone.defaultState
         assertEquals(sandstone, restored.getBlock(BlockPos(0, 0, 0)), "floor lost")
 
         val comparator = restored.getBlockEntity(comparatorPos)
@@ -96,7 +96,7 @@ class PersistenceTest {
         }
     }
 
-    private fun emptyWorld() = GameWorld(org.kvxd.optraix.world.WorldGenerator(Blocks.airState, 0))
+    private fun emptyWorld() = GameWorld(org.kvxd.optraix.world.WorldGenerator(Blocks.Air.defaultState, 0))
 
     private fun tick(world: GameWorld, times: Int) {
         repeat(times) {
@@ -107,7 +107,7 @@ class PersistenceTest {
     @Test
     fun pendingTorchTickSurvivesReload() {
         val file = tempFile()
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         val interaction = org.kvxd.optraix.interaction.Interaction(
             org.kvxd.optraix.redstone.mchprs.MchprsRedstone
         )
@@ -145,7 +145,7 @@ class PersistenceTest {
     @Test
     fun pendingRepeaterDelaySurvivesReload() {
         val file = tempFile()
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val stone = Blocks.Stone.defaultState
         val interaction = org.kvxd.optraix.interaction.Interaction(
             org.kvxd.optraix.redstone.mchprs.MchprsRedstone
         )
@@ -191,13 +191,13 @@ class PersistenceTest {
     fun editsAfterLoadStillWork() {
         val file = tempFile()
         val original = GameWorld()
-        original.setBlock(BlockPos(1, 5, 1), Blocks.require("minecraft:stone").defaultStateId)
+        original.setBlock(BlockPos(1, 5, 1), Blocks.Stone.defaultState)
         WorldStorage.save(original, file)
 
         val restored = GameWorld()
         WorldStorage.load(restored, file)
 
-        val glass = Blocks.require("minecraft:glass").defaultStateId
+        val glass = Blocks.Glass.defaultState
         assertTrue(restored.setBlock(BlockPos(1, 5, 1), glass))
         assertEquals(glass, restored.getBlock(BlockPos(1, 5, 1)))
 

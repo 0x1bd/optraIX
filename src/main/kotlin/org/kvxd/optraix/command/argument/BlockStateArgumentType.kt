@@ -6,8 +6,8 @@ import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
-import org.kvxd.optraix.block.Blocks
 import java.util.concurrent.CompletableFuture
+import org.kvxd.optraix.block.mcData
 
 class BlockStateArgumentType private constructor() : ArgumentType<Int> {
 
@@ -15,7 +15,7 @@ class BlockStateArgumentType private constructor() : ArgumentType<Int> {
         val start = reader.cursor
         while (reader.canRead() && reader.peek() != ' ') reader.skip()
         val text = reader.string.substring(start, reader.cursor)
-        return Blocks.parse(text) ?: throw UnknownBlock.createWithContext(reader)
+        return mcData.blockState(text) ?: throw UnknownBlock.createWithContext(reader)
     }
 
     override fun <S> listSuggestions(
@@ -23,9 +23,9 @@ class BlockStateArgumentType private constructor() : ArgumentType<Int> {
         builder: SuggestionsBuilder,
     ): CompletableFuture<Suggestions> {
         val remaining = builder.remaining.lowercase()
-        for (type in Blocks.types) {
-            if (type.simpleName.startsWith(remaining)) builder.suggest(type.simpleName)
-            else if (type.name.startsWith(remaining)) builder.suggest(type.name)
+        for (type in mcData.blocks) {
+            if (type.name.startsWith(remaining)) builder.suggest(type.name)
+            else if ("minecraft:${type.name}".startsWith(remaining)) builder.suggest("minecraft:${type.name}")
         }
         return builder.buildFuture()
     }

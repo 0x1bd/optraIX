@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
@@ -18,13 +17,15 @@ import org.kvxd.optraix.world.WorldGenerator
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.block.mcData
 
 class OptraIxDiffTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
-    private val redstoneBlock = Blocks.require("minecraft:redstone_block").defaultStateId
+    private val stone = Blocks.Stone.defaultState
+    private val redstoneBlock = Blocks.RedstoneBlock.defaultState
 
-    private fun emptyWorld(): GameWorld = GameWorld(WorldGenerator(Blocks.airState, 0))
+    private fun emptyWorld(): GameWorld = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
 
     private fun dust(world: GameWorld, pos: BlockPos) {
         world.setBlockSilent(
@@ -48,7 +49,7 @@ class OptraIxDiffTest {
             for (sectionIndex in chunk.sections.indices) {
                 val section = chunk.sections[sectionIndex] ?: continue
                 for (slot in 0 until 4096) {
-                    if (section.get(slot) == Blocks.airState) continue
+                    if (section.get(slot) == Blocks.Air.defaultState) continue
                     positions.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),
@@ -108,8 +109,8 @@ class OptraIxDiffTest {
                 assertEquals(
                     expected,
                     actual,
-                    "$label: tick $tick at $pos expected ${Blocks.nameOf(expected)}/" +
-                        "$expected but was ${Blocks.nameOf(actual)}/$actual",
+                    "$label: tick $tick at $pos expected ${mcData.requireBlockByStateId(expected).name}/" +
+                        "$expected but was ${mcData.requireBlockByStateId(actual).name}/$actual",
                 )
                 val expectedEntity = reference.getBlockEntity(pos) as? BlockEntity.Comparator
                 if (expectedEntity != null) {

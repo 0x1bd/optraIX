@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
@@ -19,15 +18,16 @@ import java.util.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxChainDiffTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
+    private val stone = Blocks.Stone.defaultState
 
     private class Built(val world: GameWorld, val levers: List<BlockPos>)
 
     private fun build(seed: Long, lanes: Int, segments: Int): Built {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val random = Random(seed)
         val levers = ArrayList<BlockPos>()
         val dusts = ArrayList<BlockPos>()
@@ -95,7 +95,7 @@ class OptraIxChainDiffTest {
                 val section = chunk.sections[sectionIndex] ?: continue
                 for (slot in 0 until 4096) {
                     val state = section.get(slot)
-                    if (state == Blocks.airState || state == stone) continue
+                    if (state == Blocks.Air.defaultState || state == stone) continue
                     positions.add(
                         BlockPos(
                             chunk.x * 16 + (slot and 15),
@@ -119,7 +119,7 @@ class OptraIxChainDiffTest {
                 val section = chunk.sections[sectionIndex] ?: continue
                 for (slot in 0 until 4096) {
                     val state = section.get(slot)
-                    if (state == Blocks.airState || state == stone) continue
+                    if (state == Blocks.Air.defaultState || state == stone) continue
                     if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) continue
                     positions.add(
                         BlockPos(
@@ -280,7 +280,7 @@ class OptraIxChainDiffTest {
     }
 
     private fun buildTorchy(seed: Long): Built {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val random = Random(seed)
         val levers = ArrayList<BlockPos>()
         val dusts = ArrayList<BlockPos>()
@@ -381,7 +381,7 @@ class OptraIxChainDiffTest {
     }
 
     private fun buildAdjacent(seed: Long): Built {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         val random = Random(seed)
         val levers = ArrayList<BlockPos>()
         for (lane in 0 until 3) {

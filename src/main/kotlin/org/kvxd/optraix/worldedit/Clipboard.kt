@@ -1,10 +1,10 @@
 package org.kvxd.optraix.worldedit
 
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.FlipDirection
 import org.kvxd.optraix.block.property.RotateAmount
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class Clipboard private constructor(
     val sizeX: Int,
@@ -114,7 +114,7 @@ class Clipboard private constructor(
     ): Clipboard {
         val targetVolume = Math.multiplyExact(Math.multiplyExact(newSizeX, sizeY), newSizeZ)
         if (!isSparse) {
-            val target = IntArray(targetVolume) { Blocks.airState }
+            val target = IntArray(targetVolume) { Blocks.Air.defaultState }
             storage.forEachNonAir { sourceIndex, sourceState ->
                 val x = sourceIndex % sizeX
                 val z = (sourceIndex / sizeX) % sizeZ
@@ -156,7 +156,7 @@ private interface ClipboardBlocks {
 
 private class DenseClipboardBlocks(override val dense: IntArray) : ClipboardBlocks {
     override val storedBlockCount: Int
-        get() = dense.count { it != Blocks.airState }
+        get() = dense.count { it != Blocks.Air.defaultState }
 
     override fun get(index: Int): Int = dense[index]
 
@@ -166,7 +166,7 @@ private class DenseClipboardBlocks(override val dense: IntArray) : ClipboardBloc
 
     override fun forEachNonAir(action: (Int, Int) -> Unit) {
         dense.forEachIndexed { index, state ->
-            if (state != Blocks.airState) action(index, state)
+            if (state != Blocks.Air.defaultState) action(index, state)
         }
     }
 }
@@ -192,12 +192,12 @@ internal class SparseClipboardBlocks(
                     else -> return states[middle]
                 }
             }
-            return Blocks.airState
+            return Blocks.Air.defaultState
         }
         for (entry in 0 until storedBlockCount) {
             if (positions[entry] == index) return states[entry]
         }
-        return Blocks.airState
+        return Blocks.Air.defaultState
     }
 
     override fun set(index: Int, state: Int) {
@@ -215,7 +215,7 @@ internal class SparseClipboardBuilder(initialCapacity: Int = 1024) {
     private var size = 0
 
     fun add(position: Int, state: Int) {
-        if (state == Blocks.airState) return
+        if (state == Blocks.Air.defaultState) return
         if (size == positions.size) {
             val capacity = if (size < 1 shl 20) size * 2 else size + (size shr 1)
             positions = positions.copyOf(capacity)

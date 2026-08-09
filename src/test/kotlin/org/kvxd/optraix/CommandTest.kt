@@ -3,7 +3,6 @@ package org.kvxd.optraix
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.CommandTree
 import org.kvxd.optraix.command.argument
@@ -14,6 +13,7 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.CommandNode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import org.kvxd.optraix.block.mcData
 
 class CommandTest {
 
@@ -45,7 +45,7 @@ class CommandTest {
         val reader = com.mojang.brigadier.StringReader("repeater[delay=3,facing=east]")
         val state = type.parse(reader)
         assertEquals(
-            Blocks.parse("minecraft:repeater[delay=3,facing=east]"),
+            mcData.blockState("minecraft:repeater[delay=3,facing=east]"),
             state,
         )
     }

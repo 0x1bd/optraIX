@@ -2,7 +2,6 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
@@ -17,13 +16,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxEngineTest {
 
-    private val stone = Blocks.require("minecraft:stone").defaultStateId
+    private val stone = Blocks.Stone.defaultState
 
     private fun lampWorld(): Pair<GameWorld, BlockPos> {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)
         val lever = BlockPos(0, 1, 0)
         world.setBlockSilent(lever, BlockStates.leverState(LeverFace.Floor, BlockDirection.North, false))
@@ -91,7 +91,7 @@ class OptraIxEngineTest {
         assertEquals(BlockKind.Repeater, BlockStates.kindOf(world.getBlock(pos)))
 
         interaction.destroy(world.getBlock(pos), world, pos)
-        assertEquals(Blocks.airState, world.getBlock(pos))
+        assertEquals(Blocks.Air.defaultState, world.getBlock(pos))
         assertFalse(engine.compiled)
 
         interaction.placeInWorld(Wire.makeCross(0), world, pos, null)
@@ -134,8 +134,8 @@ class OptraIxEngineTest {
         val before = engine.mutationCounter
 
         engine.mutate(world) {
-            setBlock(BlockPos(1, 1, 0), Blocks.airState)
-            setBlock(BlockPos(2, 1, 0), Blocks.airState)
+            setBlock(BlockPos(1, 1, 0), Blocks.Air.defaultState)
+            setBlock(BlockPos(2, 1, 0), Blocks.Air.defaultState)
         }
 
         assertEquals(before + 1, engine.mutationCounter)
@@ -193,7 +193,7 @@ class OptraIxEngineTest {
         file.deleteOnExit()
         org.kvxd.optraix.world.WorldStorage.save(world, file)
 
-        val restored = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val restored = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         org.kvxd.optraix.world.WorldStorage.load(restored, file)
         assertEquals(
             world.snapshotTicks().size,
@@ -232,7 +232,7 @@ class OptraIxEngineTest {
     }
 
     private fun chainWorld(): Triple<GameWorld, BlockPos, BlockPos> {
-        val world = GameWorld(WorldGenerator(Blocks.airState, 0))
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)
         val lever = BlockPos(0, 1, 0)
         world.setBlockSilent(lever, BlockStates.leverState(LeverFace.Floor, BlockDirection.North, false))

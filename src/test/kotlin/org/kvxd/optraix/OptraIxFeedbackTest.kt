@@ -1,7 +1,6 @@
 package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
@@ -16,6 +15,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class OptraIxFeedbackTest {
 
@@ -37,8 +37,8 @@ class OptraIxFeedbackTest {
 
     @Test
     fun wireEliminatedSelfFeedbackKeepsOscillating() {
-        val world = GameWorld(WorldGenerator(Blocks.airState, -64))
-        val stone = Blocks.require("minecraft:stone").defaultStateId
+        val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, -64))
+        val stone = Blocks.Stone.defaultState
         val torch = BlockPos(1, 1, 0)
         val dusts = listOf(
             BlockPos(1, 1, 1), BlockPos(1, 1, 2), BlockPos(0, 1, 2), BlockPos(-1, 1, 2),

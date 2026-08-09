@@ -2,14 +2,14 @@ package org.kvxd.optraix.worldedit
 
 import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
-import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.FlipDirection
 import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.block.mcData
 
 object BlockTransform {
 
     fun rotate90(state: Int): Int {
-        val type = Blocks.typeOf(state)
+        val type = mcData.requireBlockByStateId(state)
         if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
             return BlockStates.wireState(
                 north = wireSide(state, WireDirection.West),
@@ -40,7 +40,7 @@ object BlockTransform {
     }
 
     fun flip(state: Int, direction: FlipDirection): Int {
-        val type = Blocks.typeOf(state)
+        val type = mcData.requireBlockByStateId(state)
         if (BlockStates.kindOf(state) == BlockKind.RedstoneWire) {
             val power = BlockStates.wirePower[state].toInt()
             return if (direction == FlipDirection.FlipX) {

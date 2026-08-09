@@ -1,11 +1,12 @@
 package org.kvxd.optraix.worldedit
 
-import org.kvxd.optraix.block.Blocks
+import org.kvxd.optraix.block.mcData
+
 
 class BlockMask(private val stateId: Int, private val exact: Boolean) {
 
     fun matches(state: Int): Boolean =
-        if (exact) state == stateId else Blocks.typeOf(state) === Blocks.typeOf(stateId)
+        if (exact) state == stateId else mcData.requireBlockByStateId(state) === mcData.requireBlockByStateId(stateId)
 
     companion object {
 
@@ -14,7 +15,7 @@ class BlockMask(private val stateId: Int, private val exact: Boolean) {
         fun ofType(stateId: Int): BlockMask = BlockMask(stateId, false)
 
         fun parse(text: String): BlockMask? {
-            val state = Blocks.parse(text) ?: return null
+            val state = mcData.blockState(text) ?: return null
             return BlockMask(state, text.contains('['))
         }
     }

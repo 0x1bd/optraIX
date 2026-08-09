@@ -3,57 +3,47 @@ package org.kvxd.optraix.block
 
 object Items {
 
-    private val byProtocolId = HashMap<Int, Item>()
-    private val byName = HashMap<String, Item>()
-    private val allNames = HashMap<Int, String>()
-    private val allIds = HashMap<String, Int>()
+    private val blockAliases = mapOf("redstone" to "redstone_wire")
+
+    private val complexPlacement = hashSetOf("cauldron", "pumpkin")
+
+    private val byProtocolId: Array<Item?>
+    private val byName: HashMap<String, Item>
 
     val unknown = Item("minecraft:air", 0, 64, false, -1)
 
     init {
-        val idStream = Items::class.java.getResourceAsStream("/data/item_ids.txt")
-            ?: throw IllegalStateException("missing /data/item_ids.txt")
-        idStream.bufferedReader().forEachLine { line ->
-            if (line.isNotBlank()) {
-                val parts = line.split('|')
-                val id = parts[0].toInt()
-                allNames[id] = parts[1]
-                allIds[parts[1]] = id
+        val data = mcData
+        val items = data.items
+        byName = HashMap(items.size * 2)
+        byProtocolId = arrayOfNulls(items.maxOf { it.id } + 1)
+
+        for (entry in items) {
+            val block = data.block(blockAliases[entry.name] ?: entry.name)
+            val simple = if (block != null && block.states.isEmpty() && entry.name !in complexPlacement) {
+                block.defaultState
+            } else {
+                -1
             }
-        }
-        val stream = Items::class.java.getResourceAsStream("/data/items.txt")
-            ?: throw IllegalStateException("missing /data/items.txt")
-        val lines = stream.bufferedReader().readLines()
-        val count = lines[0].trim().toInt()
-        for (i in 0 until count) {
-            val parts = lines[1 + i].split('|')
             val item = Item(
-                name = parts[0],
-                protocolId = parts[1].toInt(),
-                maxStackSize = parts[2].toInt(),
-                isBlock = parts[3] == "1",
-                simplePlacement = parts[4].toInt(),
+                name = "minecraft:${entry.name}",
+                protocolId = entry.id,
+                maxStackSize = entry.stackSize,
+                isBlock = block != null,
+                simplePlacement = simple,
             )
-            byProtocolId[item.protocolId] = item
+            byProtocolId[entry.id] = item
             byName[item.name] = item
         }
     }
 
-    fun byProtocolId(id: Int): Item = byProtocolId[id] ?: Item(
-        name = allNames[id] ?: "minecraft:air",
-        protocolId = id,
-        maxStackSize = 64,
-        isBlock = false,
-        simplePlacement = -1,
-    )
+    fun byProtocolId(id: Int): Item =
+        (if (id in byProtocolId.indices) byProtocolId[id] else null) ?: unknown
 
-    fun byName(name: String): Item? {
-        val normalized = if (name.startsWith("minecraft:")) name else "minecraft:$name"
-        return byName[normalized]
-    }
+    fun byName(name: String): Item? =
+        byName[if (name.startsWith("minecraft:")) name else "minecraft:$name"]
 
-    fun protocolIdOf(name: String): Int? =
-        allIds[if (name.startsWith("minecraft:")) name else "minecraft:$name"]
+    fun protocolIdOf(name: String): Int? = byName(name)?.protocolId
 
-    fun nameOf(protocolId: Int): String = allNames[protocolId] ?: "minecraft:air"
+    fun nameOf(protocolId: Int): String = byProtocolId(protocolId).name
 }
