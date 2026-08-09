@@ -287,6 +287,29 @@ class RedstoneTest {
     }
 
     @Test
+    fun floatingSignsSurviveNeighbourUpdates() {
+        val world = emptyWorld()
+        val standingPos = BlockPos(0, 5, 0)
+        val wallPos = BlockPos(3, 5, 0)
+        val standing = Blocks.OakSign.defaultState
+        val wall = Blocks.OakWallSign.defaultState
+        val rows = listOf("IN operands", "a[0]", "", "")
+
+        world.setBlock(standingPos, standing)
+        world.setBlockEntity(standingPos, BlockEntity.Sign(rows, rows))
+        world.setBlock(wallPos, wall)
+        world.setBlockEntity(wallPos, BlockEntity.Sign(rows, rows))
+
+        interaction.changeSurroundingBlocks(world, standingPos.offset(BlockFace.Bottom))
+        interaction.changeSurroundingBlocks(world, wallPos.offset(BlockFace.South))
+
+        assertEquals(standing, world.getBlock(standingPos))
+        assertEquals(wall, world.getBlock(wallPos))
+        assertTrue(world.getBlockEntity(standingPos) is BlockEntity.Sign)
+        assertTrue(world.getBlockEntity(wallPos) is BlockEntity.Sign)
+    }
+
+    @Test
     fun torchBelowNonCubeIsRejected() {
         val world = emptyWorld()
         assertTrue(!interaction.isValidPosition(BlockStates.torchState(true), world, BlockPos(0, 5, 0)))

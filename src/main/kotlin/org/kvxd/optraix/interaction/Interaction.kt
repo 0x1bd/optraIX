@@ -247,6 +247,7 @@ class Interaction(private val redstone: RedstoneEngine) {
     }
 
     fun isValidPosition(state: Int, world: World, pos: BlockPos): Boolean {
+        if (BlockStates.isSign(state) || BlockStates.isWallSign(state)) return true
         val type = BlockStates.typeOf(state)
         val button = BlockStates.isButton(state)
         val checkBottom = when (type) {
