@@ -25,6 +25,8 @@ interface RedstoneEngine {
         world.tickScheduled { pos -> tick(world, pos) }
     }
 
+    fun beforeBlockChange(world: World, pos: BlockPos) {}
+
     fun onUse(world: World, pos: BlockPos): Boolean
 
     fun update(world: World, pos: BlockPos)

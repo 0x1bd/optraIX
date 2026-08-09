@@ -1,10 +1,12 @@
 package org.kvxd.optraix
 
+import org.kvxd.optraix.block.BlockKind
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.Blocks
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
@@ -76,6 +78,26 @@ class OptraIxEngineTest {
             BlockStates.lit[world.getBlock(BlockPos(6, 1, 0))],
             "the interpreter should finish what the compiled circuit started",
         )
+    }
+
+    @Test
+    fun replacingCompiledRepeaterWithDustDoesNotRestoreRepeater() {
+        val (world, _) = lampWorld()
+        val engine = OptraIxEngine()
+        val interaction = Interaction(engine)
+        val pos = BlockPos(5, 1, 0)
+
+        assertTrue(engine.compile(world))
+        assertEquals(BlockKind.Repeater, BlockStates.kindOf(world.getBlock(pos)))
+
+        interaction.destroy(world.getBlock(pos), world, pos)
+        assertEquals(Blocks.airState, world.getBlock(pos))
+        assertFalse(engine.compiled)
+
+        interaction.placeInWorld(Wire.makeCross(0), world, pos, null)
+        repeat(4) { engine.tickWorld(world) }
+
+        assertEquals(BlockKind.RedstoneWire, BlockStates.kindOf(world.getBlock(pos)))
     }
 
     @Test
@@ -221,5 +243,28 @@ class OptraIxEngineTest {
                 "decompile must materialise the true state at x=$x",
             )
         }
+    }
+
+    @Test
+    fun decompileMaterialisesEliminatedWirePower() {
+        val (world, lever) = lampWorld()
+        val engine = OptraIxEngine()
+
+        assertTrue(engine.compile(world), "compile should succeed: ${engine.lastError}")
+        assertTrue(engine.onUse(world, lever))
+        repeat(6) { engine.tickWorld(world) }
+
+        assertEquals(
+            0,
+            BlockStates.wirePower[world.getBlock(BlockPos(1, 1, 0))].toInt(),
+            "wire state stays intentionally frozen while compiled",
+        )
+
+        engine.decompile(world)
+
+        assertEquals(15, BlockStates.wirePower[world.getBlock(BlockPos(1, 1, 0))].toInt())
+        assertEquals(14, BlockStates.wirePower[world.getBlock(BlockPos(2, 1, 0))].toInt())
+        assertEquals(13, BlockStates.wirePower[world.getBlock(BlockPos(3, 1, 0))].toInt())
+        assertEquals(12, BlockStates.wirePower[world.getBlock(BlockPos(4, 1, 0))].toInt())
     }
 }

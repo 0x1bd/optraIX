@@ -48,7 +48,7 @@ class OptraIxGraph {
     fun nodeAt(pos: BlockPos): GraphNode? = byPos[pos.asLong()].takeIf { it >= 0 }?.let { nodes[it] }
 
     fun link(source: Int, target: Int, weight: Int, side: Boolean) {
-        if (source < 0 || target < 0 || source == target) return
+        if (source < 0 || target < 0) return
         val inputs = nodes[target].inputs
         for (index in inputs.indices) {
             val existing = inputs[index]

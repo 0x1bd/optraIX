@@ -7,8 +7,11 @@ import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
+import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
+import org.kvxd.optraix.world.SECTION_COUNT
+import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.world.World
 
 class OptraIxEngine : RedstoneEngine {
@@ -56,7 +59,7 @@ class OptraIxEngine : RedstoneEngine {
         return try {
             val built = OptraIxCompiler.compile(world)
             built.settle()
-            built.flush(world)
+            built.flush(world, ioOnly = true)
             world.clearTicks()
             circuit = built
             compileMillis = (System.nanoTime() - started) / 1_000_000
@@ -74,7 +77,42 @@ class OptraIxEngine : RedstoneEngine {
         val active = circuit ?: return
         circuit = null
         active.writeAll(world)
+        materializeWires(world)
         active.exportPendingTicks(world)
+    }
+
+    private fun materializeWires(world: GameWorld) {
+        val wires = LongBuffer()
+        for (chunk in world.snapshotChunks()) {
+            for (sectionIndex in 0 until SECTION_COUNT) {
+                val section = chunk.sections[sectionIndex] ?: continue
+                if (section.blockCount == 0 || !sectionHasCandidates(section)) continue
+                section.forEachState { slot, state ->
+                    if (BlockStates.kindOf(state) != BlockKind.RedstoneWire) return@forEachState
+                    wires.add(
+                        BlockPos.pack(
+                            chunk.x * 16 + (slot and 15),
+                            WORLD_MIN_Y + (sectionIndex shl 4) + (slot shr 8),
+                            chunk.z * 16 + ((slot shr 4) and 15),
+                        )
+                    )
+                }
+            }
+        }
+
+        repeat(16) {
+            var changed = false
+            for (index in 0 until wires.size) {
+                val pos = BlockPos.unpack(wires[index])
+                val state = world.getBlock(pos)
+                if (BlockStates.kindOf(state) != BlockKind.RedstoneWire) continue
+                val power = Wire.calculatePower(world, pos)
+                if (BlockStates.wirePower[state].toInt() == power) continue
+                world.setBlock(pos, BlockStates.wireWithPower(state, power))
+                changed = true
+            }
+            if (!changed) return
+        }
     }
 
     var changeCounter: Long = 0
@@ -87,6 +125,10 @@ class OptraIxEngine : RedstoneEngine {
 
     fun worldEdited(world: GameWorld, requireManualCompile: Boolean = false) {
         if (requireManualCompile) manualCompileRequired = true
+        invalidate(world)
+    }
+
+    override fun beforeBlockChange(world: World, pos: BlockPos) {
         invalidate(world)
     }
 
@@ -151,39 +193,29 @@ class OptraIxEngine : RedstoneEngine {
     }
 
     override fun update(world: World, pos: BlockPos) {
-        invalidate(world)
         MchprsRedstone.update(world, pos)
     }
 
     override fun tick(world: World, pos: BlockPos) {
-        invalidate(world)
         MchprsRedstone.tick(world, pos)
     }
 
     override fun updateSurroundingBlocks(world: World, pos: BlockPos) {
-        invalidate(world)
         MchprsRedstone.updateSurroundingBlocks(world, pos)
     }
 
     override fun updateWireNeighbors(world: World, pos: BlockPos) {
-        invalidate(world)
         MchprsRedstone.updateWireNeighbors(world, pos)
     }
 
-    override fun wireStateOnNeighborChanged(world: World, pos: BlockPos, state: Int, side: BlockFace): Int {
-        invalidate(world)
-        return MchprsRedstone.wireStateOnNeighborChanged(world, pos, state, side)
-    }
+    override fun wireStateOnNeighborChanged(world: World, pos: BlockPos, state: Int, side: BlockFace): Int =
+        MchprsRedstone.wireStateOnNeighborChanged(world, pos, state, side)
 
-    override fun wireStateForPlacement(world: World, pos: BlockPos): Int {
-        invalidate(world)
-        return MchprsRedstone.wireStateForPlacement(world, pos)
-    }
+    override fun wireStateForPlacement(world: World, pos: BlockPos): Int =
+        MchprsRedstone.wireStateForPlacement(world, pos)
 
-    override fun repeaterStateForPlacement(world: World, pos: BlockPos, facing: BlockDirection): Int {
-        invalidate(world)
-        return MchprsRedstone.repeaterStateForPlacement(world, pos, facing)
-    }
+    override fun repeaterStateForPlacement(world: World, pos: BlockPos, facing: BlockDirection): Int =
+        MchprsRedstone.repeaterStateForPlacement(world, pos, facing)
 
     override fun redstoneLampShouldBeLit(world: World, pos: BlockPos): Boolean =
         MchprsRedstone.redstoneLampShouldBeLit(world, pos)

@@ -44,6 +44,7 @@ class Interaction(private val redstone: RedstoneEngine) {
                 val pickles = BlockStates.level[state].toInt()
                 if (itemInHand?.name == "minecraft:sea_pickle" && pickles < 4) {
                     val type = Blocks.typeOf(state)
+                    redstone.beforeBlockChange(world, pos)
                     world.setBlock(
                         pos,
                         type.withValue(state, type.requireProperty("pickles"), (pickles + 1).toString()),
@@ -54,6 +55,7 @@ class Interaction(private val redstone: RedstoneEngine) {
             BlockKind.EndPortalFrame -> {
                 if (itemInHand?.name == "minecraft:ender_eye" && !BlockStates.eye[state]) {
                     val type = Blocks.typeOf(state)
+                    redstone.beforeBlockChange(world, pos)
                     world.setBlock(pos, type.withValue(state, type.requireProperty("eye"), "true"))
                     redstone.updateSurroundingBlocks(world, pos)
                     ActionResult.Success
@@ -199,6 +201,7 @@ class Interaction(private val redstone: RedstoneEngine) {
     }
 
     fun placeInWorld(state: Int, world: World, pos: BlockPos, nbt: NbtTag?) {
+        redstone.beforeBlockChange(world, pos)
         world.setBlock(pos, state)
         if (BlockStates.hasBlockEntity(state)) {
             val fromItem = nbt?.let { BlockEntityNbt.fromItemTag(it, Blocks.nameOf(state)) }
@@ -214,6 +217,7 @@ class Interaction(private val redstone: RedstoneEngine) {
     }
 
     fun destroy(state: Int, world: World, pos: BlockPos) {
+        redstone.beforeBlockChange(world, pos)
         if (BlockStates.hasBlockEntity(state)) world.deleteBlockEntity(pos)
 
         when (BlockStates.kindOf(state)) {

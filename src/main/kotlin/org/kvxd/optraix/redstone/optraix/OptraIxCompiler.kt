@@ -438,7 +438,7 @@ object OptraIxCompiler {
         }
 
         override fun edge(source: Int, target: Int, weight: Int, side: Boolean) {
-            if (source < 0 || source == target) return
+            if (source < 0 || (source == target && source < wireCount)) return
             if (source < wireCount) {
                 record(source, target, weight, side)
                 return

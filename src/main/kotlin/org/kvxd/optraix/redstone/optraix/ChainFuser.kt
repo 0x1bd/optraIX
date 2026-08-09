@@ -122,7 +122,7 @@ object ChainFuser {
             val outputs = if (chain >= 0) chains[chain].last().outputs else node.outputs
             for (edge in outputs) {
                 val target = remap[edge.target]
-                if (target < 0 || target == source) continue
+                if (target < 0) continue
                 fused.link(source, target, edge.weight, edge.side)
             }
         }

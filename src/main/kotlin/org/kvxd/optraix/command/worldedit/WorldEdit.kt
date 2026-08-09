@@ -38,6 +38,10 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun apply(player: Player, region: Region, mutator: (BlockPos) -> Int?): Int {
         val world = server.worldFor(player)
+        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
+            world,
+            requireManualCompile = region.volume > MaxAutomaticCompileBlocks,
+        )
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
         var changed = 0
@@ -202,6 +206,10 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun stack(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
         val world = server.worldFor(player)
+        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
+            world,
+            requireManualCompile = region.volume * count > MaxAutomaticCompileBlocks,
+        )
         val step = regionOffset(facing, region)
         val positions = ArrayList<Long>()
         val previous = ArrayList<Int>()
@@ -231,6 +239,10 @@ class WorldEdit(private val server: OptraIxServer) {
 
     fun move(player: Player, region: Region, count: Int, facing: BlockFacing): Int {
         val world = server.worldFor(player)
+        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
+            world,
+            requireManualCompile = region.volume > MaxAutomaticCompileBlocks,
+        )
         val step = unitOffset(facing)
         val shift = BlockPos(step.x * count, step.y * count, step.z * count)
         val snapshot = HashMap<Long, Int>()
@@ -283,6 +295,10 @@ class WorldEdit(private val server: OptraIxServer) {
         val world = server.worldFor(player)
         val replaced = IntArray(entry.positions.size)
         if (entry.size == 0) return UndoEntry(entry.positions, replaced, 0)
+        (server.engineFor(player) as? OptraIxEngine)?.worldEdited(
+            world,
+            requireManualCompile = entry.size > MaxAutomaticCompileBlocks,
+        )
         val changedChunks = HashSet<Long>()
         for (index in 0 until entry.size) {
             val pos = BlockPos.unpack(entry.positions[index])
