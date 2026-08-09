@@ -79,6 +79,7 @@ Use `/optraix compile` to compile the world. `/optraix status`, `/optraix pause`
 ### Editing
 
 - `//set`
+- `//setblock`
 - `//replace`
 - `//count`
 - `//stack`

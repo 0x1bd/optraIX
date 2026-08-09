@@ -29,6 +29,7 @@ import org.kvxd.optraix.command.worldedit.RotateCommand
 import org.kvxd.optraix.command.worldedit.SchematicCommand
 import org.kvxd.optraix.command.worldedit.SelectionCommand
 import org.kvxd.optraix.command.worldedit.SetCommand
+import org.kvxd.optraix.command.worldedit.SetblockCommand
 import org.kvxd.optraix.command.worldedit.ShiftCommand
 import org.kvxd.optraix.command.worldedit.SizeCommand
 import org.kvxd.optraix.command.worldedit.StackCommand
@@ -63,6 +64,7 @@ class CommandRegistry(private val server: OptraIxServer) {
         WandCommand(),
         SizeCommand(worldEdit),
         SetCommand(worldEdit),
+        SetblockCommand(worldEdit),
         ReplaceCommand(worldEdit),
         CountCommand(worldEdit),
         CopyCommand(worldEdit),
