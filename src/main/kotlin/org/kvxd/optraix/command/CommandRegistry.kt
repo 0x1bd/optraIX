@@ -2,6 +2,7 @@ package org.kvxd.optraix.command
 
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.exceptions.CommandSyntaxException
+import org.kvxd.optraix.command.server.CalcCommand
 import org.kvxd.optraix.command.server.HelpCommand
 import org.kvxd.optraix.command.server.OptraIxCommand
 import org.kvxd.optraix.command.server.SaveCommand
@@ -49,6 +50,7 @@ class CommandRegistry(private val server: OptraIxServer) {
     val dispatcher = CommandDispatcher<CommandSource>()
 
     val commands: List<ServerCommand> = listOf(
+        CalcCommand(),
         SpeedCommand(),
         SidebarCommand(),
         TpsCommand(),
