@@ -42,7 +42,13 @@ With GraalVM 25 and `native-image` installed:
 ./gradlew nativeCompile
 ```
 
-The executable is written to `build/native/nativeCompile/optraix`. It accepts the same command line options as the JVM build.
+On Windows, run the equivalent command from PowerShell or Command Prompt:
+
+```bat
+gradlew.bat nativeCompile
+```
+
+Windows native builds require Visual Studio Build Tools with MSVC and a Windows SDK installed. The executable is written to `build/native/nativeCompile/optraix` (`optraix.exe` on Windows) and accepts the same command line options as the JVM build.
 
 ## Redstone
 

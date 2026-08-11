@@ -9,6 +9,10 @@ plugins {
 group = "org.kvxd"
 version = "1.0-SNAPSHOT"
 
+val isWindows = providers.systemProperty("os.name").map { name ->
+    name.startsWith("Windows", ignoreCase = true)
+}
+
 repositories {
     mavenLocal()
     maven("https://repo.viaversion.com")
@@ -52,6 +56,7 @@ graalvmNative {
         named("main") {
             imageName.set("optraix")
             mainClass.set("org.kvxd.optraix.MainKt")
+            useFatJar.set(isWindows)
             buildArgs.add("-O2")
             buildArgs.add("-march=compatibility")
         }

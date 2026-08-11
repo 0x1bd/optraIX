@@ -10,21 +10,45 @@ permissions:
 
 jobs:
   test:
-    name: Tests
-    runs-on: ubuntu-latest
+    name: Tests (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            gradle: ./gradlew
+          - name: Windows
+            os: windows-latest
+            gradle: .\gradlew.bat
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "25"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew test --console=plain
+      - run: ${{ matrix.gradle }} test --console=plain
 
   native-image:
-    name: GraalVM native image
+    name: Native image (${{ matrix.name }})
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+            gradle: ./gradlew
+            artifact: optraix-linux-x86_64
+            executable: optraix
+          - name: Windows
+            os: windows-latest
+            gradle: .\gradlew.bat
+            artifact: optraix-windows-x86_64
+            executable: optraix.exe
     steps:
       - uses: actions/checkout@v4
       - uses: graalvm/setup-graalvm@v1
@@ -34,9 +58,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: "true"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew nativeCompile --console=plain
+      - run: ${{ matrix.gradle }} nativeCompile --console=plain
       - uses: actions/upload-artifact@v4
         with:
-          name: optraix-linux-x86_64
-          path: build/native/nativeCompile/optraix
+          name: ${{ matrix.artifact }}
+          path: build/native/nativeCompile/${{ matrix.executable }}
           if-no-files-found: error
