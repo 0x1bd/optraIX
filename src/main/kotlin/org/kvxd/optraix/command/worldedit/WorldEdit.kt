@@ -103,7 +103,10 @@ class WorldEdit(private val server: OptraIxServer) {
         for (chunkX in (min.x shr 4)..(max.x shr 4)) {
             for (chunkZ in (min.z shr 4)..(max.z shr 4)) {
                 val key = (chunkX.toLong() shl 32) or (chunkZ.toLong() and 0xFFFFFFFFL)
-                val packet = ChunkPackets.encode(world.chunkAt(chunkX, chunkZ))
+                val packet = ChunkPackets.encode(
+                    world.chunkAt(chunkX, chunkZ),
+                    includeSkyLight = server.config.viaversion,
+                )
                 for (target in server.players) {
                     if (server.runtimeFor(target) === runtime && key in target.loadedChunks) {
                         target.connection.send(packet)
@@ -353,7 +356,10 @@ class WorldEdit(private val server: OptraIxServer) {
                 server.runtimeFor(it) === runtime && key in it.loadedChunks
             }
             if (targets.isEmpty()) continue
-            val packet = ChunkPackets.encode(world.chunkAt((key shr 32).toInt(), key.toInt()))
+            val packet = ChunkPackets.encode(
+                world.chunkAt((key shr 32).toInt(), key.toInt()),
+                includeSkyLight = server.config.viaversion,
+            )
             for (target in targets) target.connection.send(packet)
         }
     }

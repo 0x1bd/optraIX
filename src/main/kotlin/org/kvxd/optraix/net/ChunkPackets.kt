@@ -111,7 +111,7 @@ object ChunkPackets {
         return writer.toByteArray()
     }
 
-    fun encode(chunk: Chunk): ClientboundMapChunkPacket {
+    fun encode(chunk: Chunk, includeSkyLight: Boolean = false): ClientboundMapChunkPacket {
         val blockEntities = chunk.blockEntities.entries.map { (key, entity) ->
             ChunkBlockEntity(
                 packed = ChunkBlockEntity.XZ(key and 15, (key shr 4) and 15),
@@ -127,11 +127,11 @@ object ChunkPackets {
             heightmaps = CompoundTag(),
             chunkData = sectionData(chunk),
             blockEntities = blockEntities,
-            skyLightMask = fullLightMask,
+            skyLightMask = if (includeSkyLight) fullLightMask else emptyList(),
             blockLightMask = emptyList(),
-            emptySkyLightMask = emptyList(),
+            emptySkyLightMask = if (includeSkyLight) emptyList() else fullLightMask,
             emptyBlockLightMask = fullLightMask,
-            skyLight = fullSkyLight,
+            skyLight = if (includeSkyLight) fullSkyLight else emptyList(),
             blockLight = emptyList(),
         )
     }

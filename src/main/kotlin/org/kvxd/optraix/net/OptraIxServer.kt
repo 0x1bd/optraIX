@@ -1108,7 +1108,9 @@ class OptraIxServer(val config: ServerConfig) {
         for (key in toLoad) {
             val cx = (key shr 32).toInt()
             val cz = (key and 0xFFFFFFFFL).toInt()
-            player.connection.send(ChunkPackets.encode(worldFor(player).chunkAt(cx, cz)))
+            player.connection.send(
+                ChunkPackets.encode(worldFor(player).chunkAt(cx, cz), includeSkyLight = config.viaversion)
+            )
             player.loadedChunks.add(key)
         }
         player.connection.send(ClientboundChunkBatchFinishedPacket(toLoad.size))

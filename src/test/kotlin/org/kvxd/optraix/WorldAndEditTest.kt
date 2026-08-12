@@ -227,6 +227,7 @@ class WorldAndEditTest {
         val packet = ChunkPackets.encode(chunk)
         assertEquals(3, packet.x)
         assertEquals(-7, packet.z)
+        assertTrue(packet.skyLight.isEmpty())
 
         val sections = ChunkSections.decode(packet.chunkData, ChunkFormat.v1_18(SECTION_COUNT))
         assertEquals(SECTION_COUNT, sections.size)
@@ -247,6 +248,14 @@ class WorldAndEditTest {
                 )
             }
         }
+    }
+
+    @Test
+    fun chunkOnlyIncludesFullSkyLightForProtocolTranslation() {
+        val packet = ChunkPackets.encode(GameWorld().chunkAt(0, 0), includeSkyLight = true)
+
+        assertEquals(SECTION_COUNT + 2, packet.skyLight.size)
+        assertTrue(packet.emptySkyLightMask.isEmpty())
     }
 
     @Test
