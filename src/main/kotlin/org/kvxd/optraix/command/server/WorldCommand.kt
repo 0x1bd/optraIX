@@ -16,7 +16,7 @@ class WorldCommand : ServerCommand {
 
     override val aliases = listOf("w")
 
-    override val description = "create, delete, join, and list worlds"
+    override val description = "create, delete, reset, join, and list worlds"
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         for (root in listOf(name) + aliases) {
@@ -42,6 +42,23 @@ class WorldCommand : ServerCommand {
                                 .then(
                                     literal("confirm").runs {
                                         delete(it.source, StringArgumentType.getString(it, "name"))
+                                    }
+                                )
+                        )
+                    )
+                    .then(
+                        literal("reset").then(
+                            argument("name", StringArgumentType.word())
+                                .suggests { context, builder ->
+                                    builder.suggestMatching(context.source.server.worlds.names())
+                                }
+                                .runs {
+                                    val world = StringArgumentType.getString(it, "name")
+                                    it.source.error("run /$root reset $world confirm to erase all data in this world")
+                                }
+                                .then(
+                                    literal("confirm").runs {
+                                        reset(it.source, StringArgumentType.getString(it, "name"))
                                     }
                                 )
                         )
@@ -99,6 +116,21 @@ class WorldCommand : ServerCommand {
             return
         }
         source.success("deleted world '${runtime.name}'")
+    }
+
+    private fun reset(source: CommandSource, name: String) {
+        val server = source.server
+        val runtime = server.worlds.find(name)
+        if (runtime == null) {
+            source.error("world '$name' does not exist")
+            return
+        }
+        val reset = server.resetWorld(runtime.name)
+        if (reset == null) {
+            source.error("could not reset world '${runtime.name}'")
+            return
+        }
+        source.success("reset world '${reset.name}'")
     }
 
     private fun join(source: CommandSource, name: String) {

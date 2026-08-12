@@ -888,6 +888,34 @@ class OptraIxServer(val config: ServerConfig) {
         return worlds.delete(runtime.name)
     }
 
+    fun resetWorld(name: String): ManagedWorld? {
+        val previous = worlds.find(name) ?: return null
+        val occupants = players.filter { runtimeFor(it) === previous }
+        val replacement = worlds.reset(previous.name) ?: return null
+        configureWorld(replacement)
+
+        for (player in occupants) {
+            ContainerScreens.close(player)
+            unloadAllChunks(player)
+            if (player.pendingBlockAck >= 0) {
+                player.pendingBlockAck = -1
+                pendingAcks = maxOf(0, pendingAcks - 1)
+            }
+            player.selectionOne = null
+            player.selectionTwo = null
+            player.undoStack.clear()
+            player.redoStack.clear()
+            player.lastChunkX = Int.MIN_VALUE
+            player.lastChunkZ = Int.MIN_VALUE
+            player.moved = false
+            player.connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
+            updateChunks(player, force = true)
+        }
+
+        refreshSidebar(force = true)
+        return replacement
+    }
+
     fun joinWorld(player: Player, name: String): Boolean {
         val target = worlds.find(name) ?: return false
         val previous = runtimeFor(player)

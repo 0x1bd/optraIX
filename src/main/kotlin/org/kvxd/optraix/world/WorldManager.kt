@@ -91,6 +91,14 @@ class WorldManager(private val directory: File) {
         return true
     }
 
+    fun reset(name: String): ManagedWorld? {
+        val runtime = find(name) ?: return null
+        val replacement = ManagedWorld(runtime.name, runtime.file)
+        WorldStorage.save(replacement.world, replacement.file)
+        worlds[key(runtime.name)] = replacement
+        return replacement
+    }
+
     fun isValidName(name: String): Boolean = NamePattern.matches(name) && name != "." && name != ".."
 
     fun fileFor(name: String): File = File(directory, "$name.world")
