@@ -39,9 +39,15 @@ class ReplaceCommand(private val worldEdit: WorldEdit) : ServerCommand {
             return
         }
         val mask = BlockMask.exact(from)
-        val changed = worldEdit.apply(source.player, region) { pos ->
+        val submission = worldEdit.submitApply(source.player, region, "replace", { pos ->
             if (mask.matches(source.world.getBlock(pos))) to else null
+        }, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("${outcome.changed} blocks replaced")
+                is EditOutcome.Cancelled -> source.reply("replace cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("replace failed: ${outcome.message}")
+            }
         }
-        source.success("$changed blocks replaced")
+        if (!submission.completed) source.reply("replace #${submission.jobId} started; use //cancel to roll it back")
     }
 }

@@ -57,29 +57,34 @@ object OptraIxCompiler {
 
     const val DefaultRegionChunks = 32
 
-    var stageListener: ((String, OptraIxGraph?) -> Unit)? = null
-
     fun compile(
         world: GameWorld,
         eliminateWire: Boolean = true,
         fuseChains: Boolean = true,
         regionChunks: Int = DefaultRegionChunks,
+        stageListener: ((String, OptraIxGraph?) -> Unit)? = null,
+        cancelled: () -> Boolean = { false },
     ): OptraIxCircuit {
+        checkCancelled(cancelled)
         val graph = OptraIxGraph()
         val wires = if (eliminateWire) WireIndex() else null
-        scan(world, graph, wires)
+        scan(world, graph, wires, cancelled)
+        checkCancelled(cancelled)
         stageListener?.invoke("scan", graph)
         if (wires == null) {
             val sink = GraphSink(graph)
             for (node in graph.nodes) buildEdges(world, sink, node, node.id)
         } else {
-            resolveThroughWires(world, graph, wires, regionChunks)
+            resolveThroughWires(world, graph, wires, regionChunks, cancelled)
         }
+        checkCancelled(cancelled)
         stageListener?.invoke("buildEdges", graph)
         var resolved = graph
         if (fuseChains) resolved = ChainFuser.fuse(resolved)
+        checkCancelled(cancelled)
         stageListener?.invoke("fuse", resolved)
         val circuit = flatten(resolved)
+        checkCancelled(cancelled)
         stageListener?.invoke("flatten", null)
         for (entry in world.snapshotTicks()) {
             val slot = circuit.linkIndex[entry.pos.asLong()]
@@ -94,9 +99,19 @@ object OptraIxCompiler {
         return circuit
     }
 
-    private fun scan(world: GameWorld, graph: OptraIxGraph, wires: WireIndex?) {
+    private fun checkCancelled(cancelled: () -> Boolean) {
+        if (cancelled()) throw OptraIxCompileException("compile cancelled")
+    }
+
+    private fun scan(
+        world: GameWorld,
+        graph: OptraIxGraph,
+        wires: WireIndex?,
+        cancelled: () -> Boolean,
+    ) {
         val wireSlots = ShortArray(4096)
         for (chunk in world.snapshotChunks()) {
+            checkCancelled(cancelled)
             for (sectionIndex in 0 until SECTION_COUNT) {
                 val section = chunk.sections[sectionIndex] ?: continue
                 if (section.blockCount == 0) continue
@@ -491,6 +506,7 @@ object OptraIxCompiler {
         graph: OptraIxGraph,
         wires: WireIndex,
         regionChunks: Int,
+        cancelled: () -> Boolean,
     ) {
         if (regionChunks < 1 || Integer.bitCount(regionChunks) != 1) {
             throw OptraIxCompileException("region size must be a power of two, got $regionChunks")
@@ -512,7 +528,9 @@ object OptraIxCompiler {
         val pairTarget = IntBuffer()
         val deque = IntDeque()
 
-        for ((key, core) in buckets) {
+        try {
+            for ((key, core) in buckets) {
+            checkCancelled(cancelled)
             val regionX = (key shr 32).toInt()
             val regionZ = key.toInt()
             val minX = (regionX shl shift) - Halo
@@ -561,7 +579,14 @@ object OptraIxCompiler {
                 componentGlobal, pairSource, pairTarget,
             )
 
-            for (index in 0 until componentCount) localOf[componentGlobal[index]] = -1
+                for (index in 0 until componentCount) localOf[componentGlobal[index]] = -1
+            }
+        } finally {
+            for (bucket in buckets.values) bucket.close()
+            wirePos.close()
+            componentGlobal.close()
+            pairSource.close()
+            pairTarget.close()
         }
     }
 

@@ -12,6 +12,10 @@ internal class DenseClipboardBlocks(override val dense: IntArray) : ClipboardBlo
         dense[index] = state
     }
 
+    override fun positionAt(entry: Int): Int = entry
+
+    override fun stateAt(entry: Int): Int = dense[entry]
+
     override fun forEachNonAir(action: (Int, Int) -> Unit) {
         dense.forEachIndexed { index, state ->
             if (state != Blocks.Air.defaultState) action(index, state)

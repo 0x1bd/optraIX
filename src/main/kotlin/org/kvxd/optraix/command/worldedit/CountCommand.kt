@@ -33,8 +33,13 @@ class CountCommand(private val worldEdit: WorldEdit) : ServerCommand {
             return
         }
         val mask = BlockMask.exact(state)
-        var total = 0
-        region.forEach { pos -> if (mask.matches(source.world.getBlock(pos))) total++ }
-        source.reply("counted $total blocks")
+        val submission = worldEdit.submitCount(source.player, region, mask::matches, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.reply("counted ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("count cancelled")
+                is EditOutcome.Failed -> source.error("count failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("count #${submission.jobId} started; use //cancel to stop it")
     }
 }

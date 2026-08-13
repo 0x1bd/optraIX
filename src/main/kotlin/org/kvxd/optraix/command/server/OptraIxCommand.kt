@@ -7,6 +7,8 @@ import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
+import org.kvxd.optraix.world.management.RedstoneMode
+import org.kvxd.optraix.world.management.RedstoneStage
 
 class OptraIxCommand : ServerCommand {
 
@@ -37,10 +39,12 @@ class OptraIxCommand : ServerCommand {
     private fun compile(source: CommandSource) {
         val engine = engineOf(source)
         val server = source.server
+        val runtime = server.runtimeFor(source.player)
+        runtime.desiredMode = RedstoneMode.Compiled
         source.reply("compiling...")
-        server.submit {
-            if (engine.compile(source.world)) {
-                val circuit = engine.circuit ?: return@submit
+        server.requestCompile(source.player, engine) { ok ->
+            if (ok) {
+                val circuit = engine.circuit ?: return@requestCompile
                 source.success("compile finished (${engine.compileMillis}ms)")
                 source.reply("  nodes:   ${circuit.count}")
                 source.reply("  edges:   ${circuit.edgeCount}")
@@ -54,6 +58,7 @@ class OptraIxCommand : ServerCommand {
     private fun pause(source: CommandSource) {
         val server = source.server
         server.submit {
+            val runtime = server.runtimeFor(source.player)
             val engine = server.engineFor(source.player)
             if (engine !is OptraIxEngine) {
                 source.reply("optraix is not the active engine")
@@ -63,7 +68,13 @@ class OptraIxCommand : ServerCommand {
                 source.reply("optraix is already paused")
                 return@submit
             }
+            runtime.desiredMode = RedstoneMode.Interpreted
+            runtime.compileTicket++
+            runtime.compiling = false
+            runtime.redstoneFrozen = false
             engine.pause(source.world)
+            runtime.redstoneStage = RedstoneStage.Interpreted
+            runtime.redstoneProgress = "interpreted"
             source.success("optraix paused, running interpreted until /optraix resume")
         }
     }
@@ -72,26 +83,24 @@ class OptraIxCommand : ServerCommand {
         val engine = engineOf(source)
         val server = source.server
         server.submit {
+            val runtime = server.runtimeFor(source.player)
+            runtime.desiredMode = RedstoneMode.Compiled
             if (!engine.paused && engine.compiled) {
                 source.reply("optraix is not paused")
                 return@submit
             }
             engine.resume()
-            if (engine.manualCompileRequired) {
-                source.reply("bulk edits require an explicit /optraix compile")
-                return@submit
-            }
-            server.compileRedstone(source.player, engine)
-            if (engine.compiled) {
-                source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
-            } else {
-                source.reply("compile failed: ${engine.lastError}")
+            source.reply("compiling...")
+            server.requestCompile(source.player, engine) { ok ->
+                if (ok) source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
+                else source.reply("compile failed: ${engine.lastError}")
             }
         }
     }
 
     private fun status(source: CommandSource) {
         val server = source.server
+        val runtime = server.runtimeFor(source.player)
         val engine = server.engineFor(source.player)
         source.heading("optraix")
         source.reply("  engine:   ${engine.name}")
@@ -101,12 +110,8 @@ class OptraIxCommand : ServerCommand {
         }
         val circuit = engine.circuit
         if (circuit == null) {
-            val state = when {
-                engine.paused -> "paused"
-                engine.manualCompileRequired -> "manual compile required"
-                else -> "not compiled"
-            }
-            source.reply("  state:    $state")
+            source.reply("  state:    ${runtime.redstoneStage.name.lowercase()}")
+            if (runtime.redstoneProgress.isNotEmpty()) source.reply("  progress: ${runtime.redstoneProgress}")
             engine.lastError?.let { source.reply("  error:    $it") }
             return
         }

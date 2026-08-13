@@ -73,7 +73,6 @@ class SchematicStreamingTest {
 
         assertEquals(14_646_595, changed)
         assertTrue(player.undoStack.isEmpty())
-        assertTrue(engine.manualCompileRequired)
         assertTrue(!engine.compiled)
         assertTrue(
             CompileMemoryPreflight.evaluate(server.world).requiredBytes < 2L * 1024 * 1024 * 1024,

@@ -71,6 +71,9 @@ Use `/optraix compile` to compile the world. `/optraix status`, `/optraix pause`
 
 ## WorldEdit
 
+Use `/help` in-game for command usage. Put `.schem` or `.schematic` files in `run/schematics/` to load them.
+`//cancel` cancels progressive WorldEdit jobs.
+
 ### Selection
 
 - `//wand`
@@ -108,8 +111,3 @@ Use `/optraix compile` to compile the world. `/optraix status`, `/optraix pause`
 
 - `//schem`
 - `//load`
-
-Use `/help` in-game for command usage. Put `.schem` or `.schematic` files in `run/schematics/` to load them.
-
-> [!WARNING]
-> Edits larger than 1M blocks cannot be undone.

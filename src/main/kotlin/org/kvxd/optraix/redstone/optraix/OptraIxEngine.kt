@@ -6,7 +6,6 @@ import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
-import org.kvxd.optraix.redstone.mutation.RecompilePolicy
 import org.kvxd.optraix.redstone.mutation.WorldMutationContext
 import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.collection.LongBuffer
@@ -42,9 +41,6 @@ class OptraIxEngine : RedstoneEngine {
     var paused: Boolean = false
         private set
 
-    var manualCompileRequired: Boolean = false
-        private set
-
     fun pause(world: GameWorld) {
         decompile(world)
         paused = true
@@ -57,72 +53,106 @@ class OptraIxEngine : RedstoneEngine {
     fun compile(world: GameWorld): Boolean {
         paused = false
         decompile(world)
-        val memoryFailure = CompileMemoryPreflight.evaluate(world).failure
-        if (memoryFailure != null) {
-            lastError = memoryFailure
-            circuit = null
-            return false
-        }
-        val started = System.nanoTime()
         return try {
-            val built = OptraIxCompiler.compile(world)
-            built.settle()
-            built.flush(world, ioOnly = true)
-            world.clearTicks()
-            circuit = built
-            compileMillis = (System.nanoTime() - started) / 1_000_000
-            lastError = null
-            manualCompileRequired = false
+            activate(world, build(world, enforceMemoryBudget = true))
             true
-        } catch (cause: OptraIxCompileException) {
+        } catch (cause: Exception) {
             lastError = cause.message
             circuit = null
             false
         }
     }
 
+    internal fun build(
+        world: GameWorld,
+        enforceMemoryBudget: Boolean,
+        stageListener: ((String) -> Unit)? = null,
+        cancelled: () -> Boolean = { false },
+    ): OptraIxBuild {
+        if (enforceMemoryBudget) {
+            CompileMemoryPreflight.evaluate(world).failure?.let { throw OptraIxCompileException(it) }
+        }
+        val started = System.nanoTime()
+        val built = OptraIxCompiler.compile(
+            world,
+            stageListener = { stage, _ -> stageListener?.invoke(stage) },
+            cancelled = cancelled,
+        )
+        built.settle()
+        return OptraIxBuild(built, (System.nanoTime() - started) / 1_000_000)
+    }
+
+    internal fun activate(world: GameWorld, build: OptraIxBuild) {
+        build.circuit.synchronizeSources(world)
+        build.circuit.flush(world, ioOnly = true)
+        world.clearTicks()
+        circuit = build.circuit
+        compileMillis = build.millis
+        lastError = null
+        paused = false
+    }
+
+    internal fun failCompile(message: String?) {
+        lastError = message ?: "compile failed"
+        circuit = null
+    }
+
     fun decompile(world: GameWorld) {
+        detach(world, materialize = true)
+    }
+
+    internal fun suspendForTransition(world: GameWorld) {
+        detach(world, materialize = false)
+    }
+
+    internal fun reconcile(world: GameWorld) {
+        materializeWires(world)
+    }
+
+    private fun detach(world: GameWorld, materialize: Boolean) {
         val active = circuit ?: return
         circuit = null
         active.writeAll(world)
-        materializeWires(world)
+        if (materialize) materializeWires(world)
         active.exportPendingTicks(world)
     }
 
     private fun materializeWires(world: GameWorld) {
-        val wires = LongBuffer()
-        for (chunk in world.snapshotChunks()) {
-            for (sectionIndex in 0 until SECTION_COUNT) {
-                val section = chunk.sections[sectionIndex] ?: continue
-                if (section.blockCount == 0 || !sectionHasCandidates(section)) continue
-                section.forEachState { slot, state ->
-                    if (!BlockStates.isType(state, Blocks.RedstoneWire)) return@forEachState
-                    wires.add(
-                        BlockPos.pack(
-                            chunk.x * 16 + (slot and 15),
-                            WORLD_MIN_Y + (sectionIndex shl 4) + (slot shr 8),
-                            chunk.z * 16 + ((slot shr 4) and 15),
+        LongBuffer().use { wires ->
+            for (chunk in world.snapshotChunks()) {
+                for (sectionIndex in 0 until SECTION_COUNT) {
+                    val section = chunk.sections[sectionIndex] ?: continue
+                    if (section.blockCount == 0 || !sectionHasCandidates(section)) continue
+                    section.forEachState { slot, state ->
+                        if (!BlockStates.isType(state, Blocks.RedstoneWire)) return@forEachState
+                        wires.add(
+                            BlockPos.pack(
+                                chunk.x * 16 + (slot and 15),
+                                WORLD_MIN_Y + (sectionIndex shl 4) + (slot shr 8),
+                                chunk.z * 16 + ((slot shr 4) and 15),
+                            )
                         )
-                    )
+                    }
                 }
             }
-        }
 
-        repeat(16) {
-            var changed = false
-            for (index in 0 until wires.size) {
-                val pos = BlockPos.unpack(wires[index])
-                val state = world.getBlock(pos)
-                if (!BlockStates.isType(state, Blocks.RedstoneWire)) continue
-                val power = Wire.calculatePower(world, pos)
-                if (BlockStates.wirePower[state].toInt() == power) continue
-                world.setBlock(pos, BlockStates.wireWithPower(state, power))
-                changed = true
+            repeat(16) {
+                var changed = false
+                for (index in 0 until wires.size) {
+                    val pos = BlockPos.unpack(wires[index])
+                    val state = world.getBlock(pos)
+                    if (!BlockStates.isType(state, Blocks.RedstoneWire)) continue
+                    val power = Wire.calculatePower(world, pos)
+                    if (BlockStates.wirePower[state].toInt() == power) continue
+                    world.setBlock(pos, BlockStates.wireWithPower(state, power))
+                    changed = true
+                }
+                if (!changed) return
             }
-            if (!changed) return
         }
     }
 
+    @Volatile
     var mutationCounter: Long = 0
         private set
 
@@ -131,7 +161,6 @@ class OptraIxEngine : RedstoneEngine {
         options: WorldMutationOptions,
     ): WorldMutationContext {
         mutationCounter++
-        if (options.recompilePolicy == RecompilePolicy.Manual) manualCompileRequired = true
         if (circuit != null) {
             val gameWorld = world as? GameWorld
                 ?: error("compiled circuit mutations require a GameWorld")

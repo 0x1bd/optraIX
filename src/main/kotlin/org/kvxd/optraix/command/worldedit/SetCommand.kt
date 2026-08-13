@@ -31,7 +31,13 @@ class SetCommand(private val worldEdit: WorldEdit) : ServerCommand {
             source.error("make a selection first")
             return
         }
-        val changed = worldEdit.apply(source.player, region) { state }
-        source.success("$changed blocks changed")
+        val submission = worldEdit.submitApply(source.player, region, "set", { state }, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("${outcome.changed} blocks changed")
+                is EditOutcome.Cancelled -> source.reply("set cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("set failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("set #${submission.jobId} started; use //cancel to roll it back")
     }
 }

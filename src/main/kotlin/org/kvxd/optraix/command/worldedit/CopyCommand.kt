@@ -23,7 +23,13 @@ class CopyCommand(private val worldEdit: WorldEdit) : ServerCommand {
             source.error("make a selection first")
             return
         }
-        worldEdit.copy(source.player, region)
-        source.success("copied ${region.volume} blocks")
+        val submission = worldEdit.submitCopy(source.player, region, false, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("copied ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("copy cancelled")
+                is EditOutcome.Failed -> source.error("copy failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("copy #${submission.jobId} started; use //cancel to stop it")
     }
 }

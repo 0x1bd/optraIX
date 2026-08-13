@@ -15,9 +15,16 @@ class RedoCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         dispatcher.register(literal("/redo").runs { context ->
-            val count = worldEdit.redo(context.source.player)
-            if (count == null) context.source.reply("nothing to redo")
-            else context.source.success("redid $count blocks")
+            val source = context.source
+            val submission = worldEdit.submitHistory(source.player, true, source::reply) { outcome ->
+                when (outcome) {
+                    is EditOutcome.Completed -> source.success("redid ${outcome.changed} blocks")
+                    is EditOutcome.Cancelled -> source.reply("redo cancelled")
+                    is EditOutcome.Failed -> source.error("redo failed: ${outcome.message}")
+                }
+            }
+            if (submission == null) source.reply("nothing to redo")
+            else if (!submission.completed) source.reply("redo #${submission.jobId} started")
         })
     }
 }

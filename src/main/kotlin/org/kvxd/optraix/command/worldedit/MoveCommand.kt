@@ -48,6 +48,13 @@ class MoveCommand(private val worldEdit: WorldEdit) : ServerCommand {
             source.error("unknown direction: $direction")
             return
         }
-        source.success("moved ${worldEdit.move(player, region, count, facing)} blocks")
+        val submission = worldEdit.submitMove(player, region, count, facing, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("moved ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("move cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("move failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("move #${submission.jobId} started; use //cancel to roll it back")
     }
 }

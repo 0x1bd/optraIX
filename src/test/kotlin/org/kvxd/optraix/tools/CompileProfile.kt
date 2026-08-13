@@ -95,7 +95,7 @@ object CompileProfile {
                 "(${(System.nanoTime() - preflightStart) / 1_000_000}ms)"
         )
 
-        OptraIxCompiler.stageListener = { stage, graph ->
+        val stageListener = { stage: String, graph: org.kvxd.optraix.redstone.optraix.graph.OptraIxGraph? ->
             val live = runtime.totalMemory() - runtime.freeMemory()
             val shape = if (graph == null) "" else " nodes=${graph.nodes.size} edges=${graph.edgeCount}"
             println("  stage $stage: live heap ${mib(live)}$shape")
@@ -106,7 +106,9 @@ object CompileProfile {
         val compileStart = System.nanoTime()
         val regionChunks = args.getOrNull(1)?.toIntOrNull() ?: OptraIxCompiler.DefaultRegionChunks
         println("region size: $regionChunks chunks")
-        val result = runCatching { OptraIxCompiler.compile(world, regionChunks = regionChunks) }
+        val result = runCatching {
+            OptraIxCompiler.compile(world, regionChunks = regionChunks, stageListener = stageListener)
+        }
         val compileMillis = (System.nanoTime() - compileStart) / 1_000_000
         sampler.running = false
         sampler.join()

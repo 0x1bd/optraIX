@@ -525,6 +525,16 @@ class OptraIxCircuit internal constructor(
         scheduler.schedule(node, delayData[node].toInt(), 3)
     }
 
+    fun synchronizeSources(world: World) {
+        for (node in 0 until count) {
+            val type = typeOf(node)
+            if (type != NodeType.Lever && type != NodeType.Button && type != NodeType.PressurePlate) continue
+            val powered = BlockStates.powered[world.getBlock(BlockPos.unpack(posKey[node]))]
+            if (type == NodeType.Button && powered && !isOn(node)) pressButton(node)
+            else setSource(node, powered)
+        }
+    }
+
     fun nodeAt(pos: BlockPos): Int = index[pos.asLong()] ?: -1
 
     fun typeOf(node: Int): Int = (state[node] and 0xFL).toInt()

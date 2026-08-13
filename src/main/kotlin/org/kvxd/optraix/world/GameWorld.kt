@@ -1,12 +1,13 @@
 package org.kvxd.optraix.world
 
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import java.util.concurrent.ConcurrentHashMap
 
 class GameWorld(
     val generator: WorldGenerator = WorldGenerator(Blocks.Sandstone.defaultState, 0),
 ) : World {
 
-    private val chunks = HashMap<Long, Chunk>()
+    private val chunks = ConcurrentHashMap<Long, Chunk>()
     private val tickQueue = ArrayList<TickEntry>()
     private val pendingPositions = HashMap<Long, Int>()
 
@@ -49,13 +50,7 @@ class GameWorld(
             for (sectionIndex in 0 until SECTION_COUNT) {
                 val section = chunk.sections[sectionIndex] ?: continue
 
-                target.sections[sectionIndex] = ChunkSection.restore(
-                    bitsPerEntry = section.bitsPerEntry,
-                    palette = section.palette.copyOf(),
-                    paletteSize = section.paletteSize,
-                    data = section.data.copyOf(),
-                    blockCount = section.blockCount,
-                )
+                target.sections[sectionIndex] = section.snapshotCopy()
             }
 
             target.blockEntities.putAll(chunk.blockEntities)
@@ -113,6 +108,7 @@ class GameWorld(
         changedBlockEntities += pos.asLong()
     }
 
+    @Synchronized
     override fun scheduleTick(pos: BlockPos, delay: Int, priority: TickPriority) {
         tickQueue += TickEntry(delay, priority, pos)
         val key = pos.asLong()
@@ -121,6 +117,7 @@ class GameWorld(
 
     override fun pendingTickAt(pos: BlockPos): Boolean = pendingPositions.containsKey(pos.asLong())
 
+    @Synchronized
     fun tickScheduled(runner: (BlockPos) -> Unit) {
         if (tickQueue.isEmpty()) return
         tickQueue.sortWith(compareBy({ it.ticksLeft }, { it.priority.ordinal }))
@@ -134,13 +131,16 @@ class GameWorld(
         }
     }
 
+    @Synchronized
     fun clearTicks() {
         tickQueue.clear()
         pendingPositions.clear()
     }
 
-    fun snapshotTicks(): List<TickEntry> = tickQueue.toList()
+    @Synchronized
+    fun snapshotTicks(): List<TickEntry> = tickQueue.map { TickEntry(it.ticksLeft, it.priority, it.pos) }
 
+    @Synchronized
     fun restoreTicks(entries: List<TickEntry>) {
         clearTicks()
         for (entry in entries) scheduleTick(entry.pos, entry.ticksLeft, entry.priority)

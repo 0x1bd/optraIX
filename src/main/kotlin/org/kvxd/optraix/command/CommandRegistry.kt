@@ -14,6 +14,7 @@ import org.kvxd.optraix.command.server.TeleportCommand
 import org.kvxd.optraix.command.server.TpsCommand
 import org.kvxd.optraix.command.server.WorldCommand
 import org.kvxd.optraix.command.worldedit.ContractCommand
+import org.kvxd.optraix.command.worldedit.CancelCommand
 import org.kvxd.optraix.command.worldedit.CopyCommand
 import org.kvxd.optraix.command.worldedit.CountCommand
 import org.kvxd.optraix.command.worldedit.CutCommand
@@ -64,6 +65,7 @@ class CommandRegistry(private val server: OptraIxServer) {
         Pos2Command(worldEdit),
         SelectionCommand(worldEdit),
         WandCommand(),
+        CancelCommand(worldEdit),
         SizeCommand(worldEdit),
         SetCommand(worldEdit),
         SetblockCommand(worldEdit),
@@ -106,6 +108,14 @@ class CommandRegistry(private val server: OptraIxServer) {
             Log.error("command", "${player.name} ran '/$input'", cause)
             source.error("command failed: ${Log.describe(cause)}")
         }
+    }
+
+    fun tickWorldEdit() {
+        worldEdit.tickJobs()
+    }
+
+    fun shutdownWorldEdit() {
+        worldEdit.shutdownJobs()
     }
 
     fun complete(player: Player, transactionId: Int, text: String) {

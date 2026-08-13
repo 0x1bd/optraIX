@@ -2,6 +2,7 @@ package org.kvxd.optraix
 
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.command.worldedit.WorldEdit
+import org.kvxd.optraix.command.worldedit.EditOutcome
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
@@ -17,11 +18,76 @@ import kotlin.test.assertTrue
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.block.property.WireSide
+import org.kvxd.optraix.block.property.BlockFacing
+import org.kvxd.optraix.world.management.RedstoneMode
 
 class WorldEditTest {
 
     @Test
-    fun bulkPasteRequiresExplicitOptraIxCompilation() {
+    fun cooperativeMovePreservesOverlappingSourceAndUndo() {
+        val server = server()
+        server.worlds.default.desiredMode = RedstoneMode.Interpreted
+        val player = player(server)
+        val worldEdit = WorldEdit(server)
+        val first = Blocks.Stone.defaultState
+        val second = Blocks.RedstoneBlock.defaultState
+        server.world.setBlock(BlockPos(0, 1, 0), first)
+        server.world.setBlock(BlockPos(1, 1, 0), second)
+        var outcome: EditOutcome? = null
+
+        worldEdit.submitMove(
+            player,
+            Region(BlockPos(0, 1, 0), BlockPos(1, 1, 0)),
+            1,
+            BlockFacing.East,
+            {},
+            { outcome = it },
+        )
+        repeat(20) { if (outcome == null) worldEdit.tickJobs() }
+
+        assertTrue(outcome is EditOutcome.Completed)
+        assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(0, 1, 0)))
+        assertEquals(first, server.world.getBlock(BlockPos(1, 1, 0)))
+        assertEquals(second, server.world.getBlock(BlockPos(2, 1, 0)))
+
+        worldEdit.undo(player)
+
+        assertEquals(first, server.world.getBlock(BlockPos(0, 1, 0)))
+        assertEquals(second, server.world.getBlock(BlockPos(1, 1, 0)))
+        assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(2, 1, 0)))
+    }
+
+    @Test
+    fun largePasteYieldsAndCanRollback() {
+        val server = server()
+        server.worlds.default.desiredMode = RedstoneMode.Interpreted
+        val player = player(server)
+        player.y = 10.0
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
+            100_000,
+            1,
+            1,
+            BlockPos(0, 0, 0),
+            IntArray(100_000) { Blocks.Stone.defaultState },
+        )
+        val worldEdit = WorldEdit(server)
+        var outcome: EditOutcome? = null
+
+        val submission = worldEdit.submitPaste(player, clipboard, false, {}, { outcome = it })
+
+        assertTrue(!submission.completed)
+        assertTrue(worldEdit.cancel(player))
+        repeat(100) {
+            if (outcome == null) worldEdit.tickJobs()
+        }
+        assertTrue(outcome is EditOutcome.Cancelled)
+        assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(0, 10, 0)))
+        assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(16_000, 10, 0)))
+        assertTrue(!server.worlds.default.redstoneFrozen)
+    }
+
+    @Test
+    fun bulkPasteDoesNotDisableAutomaticOptraIxCompilation() {
         val server = server()
         val engine = OptraIxEngine()
         server.useEngine(engine)
@@ -38,13 +104,9 @@ class WorldEditTest {
         )
 
         assertEquals(250_001, WorldEdit(server).paste(player, clipboard, includeAir = false))
-        assertTrue(engine.manualCompileRequired)
         assertTrue(!engine.compiled)
         server.compileRedstone(engine)
-        assertTrue(!engine.compiled)
-        assertTrue(engine.compile(server.world))
         assertTrue(engine.compiled)
-        assertTrue(!engine.manualCompileRequired)
     }
 
     private fun server(): OptraIxServer =

@@ -35,6 +35,10 @@ internal class SparseClipboardBlocks(
         error("sparse clipboard blocks are immutable")
     }
 
+    override fun positionAt(entry: Int): Int = positions[entry]
+
+    override fun stateAt(entry: Int): Int = states[entry]
+
     override fun forEachNonAir(action: (Int, Int) -> Unit) {
         for (entry in 0 until storedBlockCount) action(positions[entry], states[entry])
     }

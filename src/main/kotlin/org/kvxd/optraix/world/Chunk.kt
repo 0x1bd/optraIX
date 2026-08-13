@@ -1,12 +1,13 @@
 package org.kvxd.optraix.world
 
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import java.util.concurrent.ConcurrentHashMap
 
 
 class Chunk(val x: Int, val z: Int) {
 
     val sections = arrayOfNulls<ChunkSection>(SECTION_COUNT)
-    val blockEntities = HashMap<Int, BlockEntity>()
+    val blockEntities = ConcurrentHashMap<Int, BlockEntity>()
 
     var wireData: ByteArray? = null
 

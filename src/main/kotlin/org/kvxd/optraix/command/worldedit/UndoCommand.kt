@@ -15,9 +15,16 @@ class UndoCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         dispatcher.register(literal("/undo").runs { context ->
-            val count = worldEdit.undo(context.source.player)
-            if (count == null) context.source.reply("nothing to undo")
-            else context.source.success("undid $count blocks")
+            val source = context.source
+            val submission = worldEdit.submitHistory(source.player, false, source::reply) { outcome ->
+                when (outcome) {
+                    is EditOutcome.Completed -> source.success("undid ${outcome.changed} blocks")
+                    is EditOutcome.Cancelled -> source.reply("undo cancelled")
+                    is EditOutcome.Failed -> source.error("undo failed: ${outcome.message}")
+                }
+            }
+            if (submission == null) source.reply("nothing to undo")
+            else if (!submission.completed) source.reply("undo #${submission.jobId} started")
         })
     }
 }

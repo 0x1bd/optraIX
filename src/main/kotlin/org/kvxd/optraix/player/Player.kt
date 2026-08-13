@@ -72,8 +72,25 @@ class Player(
         get() = DefaultWalkingSpeed * speedMultiplier
 
     fun pushUndo(entry: UndoEntry) {
-        undoStack.push(entry)
-        while (undoStack.size > 32) undoStack.removeLast()
-        redoStack.clear()
+        pushBounded(undoStack, entry)
+        while (redoStack.isNotEmpty()) redoStack.pop().close()
+    }
+
+    fun pushUndoFromRedo(entry: UndoEntry) {
+        pushBounded(undoStack, entry)
+    }
+
+    fun pushRedo(entry: UndoEntry) {
+        pushBounded(redoStack, entry)
+    }
+
+    fun clearHistory() {
+        while (undoStack.isNotEmpty()) undoStack.pop().close()
+        while (redoStack.isNotEmpty()) redoStack.pop().close()
+    }
+
+    private fun pushBounded(stack: ArrayDeque<UndoEntry>, entry: UndoEntry) {
+        stack.push(entry)
+        while (stack.size > 32) stack.removeLast().close()
     }
 }

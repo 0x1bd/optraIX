@@ -5,7 +5,6 @@ import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
-import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class CutCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
@@ -24,9 +23,13 @@ class CutCommand(private val worldEdit: WorldEdit) : ServerCommand {
             source.error("make a selection first")
             return
         }
-        worldEdit.copy(source.player, region)
-        val air = Blocks.Air.defaultState
-        val changed = worldEdit.apply(source.player, region) { air }
-        source.success("cut $changed blocks")
+        val submission = worldEdit.submitCopy(source.player, region, true, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("cut ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("cut cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("cut failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("cut #${submission.jobId} started; use //cancel to roll it back")
     }
 }

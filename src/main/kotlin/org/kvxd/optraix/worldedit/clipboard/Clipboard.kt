@@ -49,6 +49,15 @@ class Clipboard private constructor(
         storage.forEachNonAir(action)
     }
 
+    internal fun pasteEntryCount(includeAir: Boolean): Int =
+        if (includeAir || !isSparse) volume else storedBlockCount
+
+    internal fun pastePosition(entry: Int, includeAir: Boolean): Int =
+        if (includeAir || !isSparse) entry else storage.positionAt(entry)
+
+    internal fun pasteState(entry: Int, includeAir: Boolean): Int =
+        if (includeAir || !isSparse) storage[entry] else storage.stateAt(entry)
+
     fun rotate(amount: RotateAmount): Clipboard {
         var current = this
         val turns = when (amount) {

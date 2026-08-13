@@ -90,9 +90,13 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Position
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Slot
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.SoundSource
 import io.ktor.network.sockets.InetSocketAddress
+import java.io.File
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
+import org.kvxd.optraix.redstone.optraix.OptraIxBuild
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.LockSupport
 import kotlin.math.floor
@@ -100,6 +104,8 @@ import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.Clientb
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.serverbound.ServerboundPingPacket as StatusPingPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.status.clientbound.ClientboundPingPacket as StatusPongPacket
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.world.management.RedstoneMode
+import org.kvxd.optraix.world.management.RedstoneStage
 
 class OptraIxServer(val config: ServerConfig) {
 
@@ -140,14 +146,27 @@ class OptraIxServer(val config: ServerConfig) {
 
     init {
         configureWorld(worlds.default)
+        File(System.getProperty("java.io.tmpdir"), "optraix-compile").listFiles()
+            ?.filter { it.extension == "buffer" }
+            ?.forEach(File::delete)
     }
 
     private val entityIds = AtomicInteger(1)
     private val tasks = ConcurrentLinkedQueue<Runnable>()
+    private val compileExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "optraix-compile").apply { isDaemon = true }
+    }
     private val protocol = Protocols.requireMinecraftVersion("1.20.4")
 
     fun submit(task: Runnable) {
         tasks.add(task)
+    }
+
+    internal fun runSubmittedTasks() {
+        while (true) {
+            val task = tasks.poll() ?: break
+            runCatching { task.run() }
+        }
     }
 
     fun runtimeFor(player: Player): ManagedWorld = worlds.find(player.worldName) ?: worlds.default
@@ -157,6 +176,36 @@ class OptraIxServer(val config: ServerConfig) {
     fun engineFor(player: Player): RedstoneEngine = runtimeFor(player).engine
 
     fun interactionFor(player: Player): Interaction = runtimeFor(player).interaction
+
+    fun beginWorldEdit(player: Player, jobId: Long): Boolean {
+        val runtime = runtimeFor(player)
+        if (runtime.editJobId != null) return false
+        runtime.editJobId = jobId
+        runtime.editOwner = player.uuid
+        runtime.compileTicket++
+        runtime.compiling = false
+        runtime.redstoneFrozen = true
+        runtime.redstoneStage = RedstoneStage.Editing
+        runtime.redstoneProgress = "starting"
+        (runtime.engine as? OptraIxEngine)?.suspendForTransition(runtime.world)
+        return true
+    }
+
+    fun completeWorldEdit(player: Player) {
+        val runtime = runtimeFor(player)
+        runtime.editJobId = null
+        runtime.editOwner = null
+        runtime.redstoneStage = RedstoneStage.Interpreted
+        runtime.redstoneProgress = "edit complete"
+        val target = runtime.engine as? OptraIxEngine
+        if (running && runtime.desiredMode == RedstoneMode.Compiled && target != null) {
+            requestCompile(runtime, target) {}
+        } else {
+            target?.reconcile(runtime.world)
+            runtime.redstoneFrozen = false
+        }
+        refreshSidebar(force = true)
+    }
 
     fun useEngine(next: RedstoneEngine) {
         worlds.default.useEngine(next)
@@ -220,7 +269,7 @@ class OptraIxServer(val config: ServerConfig) {
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
 
         for (runtime in worlds.all()) {
-            (runtime.engine as? OptraIxEngine)?.let { compileRedstone(runtime, it) }
+            (runtime.engine as? OptraIxEngine)?.let { requestCompile(runtime, it) {} }
         }
 
         startGameLoop()
@@ -253,11 +302,21 @@ class OptraIxServer(val config: ServerConfig) {
                 if (thread.isAlive) Log.warn("server", "tick thread did not stop within ${ShutdownJoinMillis}ms")
             }
 
+            commands.shutdownWorldEdit()
+            for (runtime in worlds.all()) {
+                runtime.compileTicket++
+                if (runtime.redstoneFrozen) {
+                    (runtime.engine as? OptraIxEngine)?.reconcile(runtime.world)
+                    runtime.redstoneFrozen = false
+                }
+            }
             disconnectPlayers()
             runCatching { socket?.close() }
             networkJob?.cancel()
             runCatching { viaVersionRuntime?.close() }
             viaVersionRuntime = null
+            compileExecutor.shutdownNow()
+            compileExecutor.awaitTermination(ShutdownJoinMillis, TimeUnit.MILLISECONDS)
 
             val saved = saveWorld()
             shutdownResult = saved
@@ -286,6 +345,7 @@ class OptraIxServer(val config: ServerConfig) {
 
         var total = 0
         for (runtime in worlds.all()) {
+            if (runtime.editJobId != null) continue
             val activeCircuit = (runtime.engine as? OptraIxEngine)?.circuit
             val worldToSave = if (activeCircuit == null) {
                 runtime.world
@@ -309,7 +369,6 @@ class OptraIxServer(val config: ServerConfig) {
 
     private fun compileRedstone(runtime: ManagedWorld, target: OptraIxEngine) {
         if (target.paused) return
-        if (target.manualCompileRequired) return
         runtime.compiling = true
         refreshSidebar(force = true)
         val ok = target.compile(runtime.world)
@@ -320,6 +379,115 @@ class OptraIxServer(val config: ServerConfig) {
         } else {
             println("[optraix:${runtime.name}] compile failed: ${target.lastError} (running interpreted)")
         }
+        refreshSidebar(force = true)
+    }
+
+    fun requestCompile(
+        player: Player,
+        target: OptraIxEngine,
+        completion: (Boolean) -> Unit = {},
+    ) = requestCompile(runtimeFor(player), target, completion)
+
+    fun requestCompile(
+        target: OptraIxEngine,
+        completion: (Boolean) -> Unit = {},
+    ) = requestCompile(worlds.default, target, completion)
+
+    private fun requestCompile(
+        runtime: ManagedWorld,
+        target: OptraIxEngine,
+        completion: (Boolean) -> Unit,
+    ) {
+        if (runtime.desiredMode != RedstoneMode.Compiled) {
+            completion(false)
+            return
+        }
+        val ticket = ++runtime.compileTicket
+        runtime.compiling = true
+        runtime.redstoneFrozen = true
+        runtime.redstoneStage = RedstoneStage.Snapshotting
+        runtime.redstoneProgress = "snapshotting"
+        refreshSidebar(force = true)
+
+        target.resume()
+        target.suspendForTransition(runtime.world)
+        val generation = target.mutationCounter
+        compileExecutor.execute {
+            val result = runCatching {
+                val snapshot = runtime.world.copyForSave()
+                submit {
+                    if (runtime.compileTicket == ticket) {
+                        runtime.redstoneFrozen = false
+                        runtime.redstoneStage = RedstoneStage.Compiling
+                        runtime.redstoneProgress = "compiling; interpreted redstone active"
+                        refreshSidebar(force = true)
+                    }
+                }
+                target.build(
+                    snapshot,
+                    enforceMemoryBudget = true,
+                    stageListener = { stage ->
+                        submit {
+                            if (runtime.compileTicket == ticket) runtime.redstoneProgress = stage
+                        }
+                    },
+                    cancelled = {
+                        runtime.compileTicket != ticket ||
+                            runtime.desiredMode != RedstoneMode.Compiled ||
+                            !running
+                    },
+                )
+            }
+            submit {
+                finishCompile(runtime, target, ticket, generation, result, completion)
+            }
+        }
+    }
+
+    private fun finishCompile(
+        runtime: ManagedWorld,
+        target: OptraIxEngine,
+        ticket: Long,
+        generation: Long,
+        result: Result<OptraIxBuild>,
+        completion: (Boolean) -> Unit,
+    ) {
+        if (runtime.compileTicket != ticket) return
+        if (target.mutationCounter != generation) {
+            runtime.compiling = false
+            runtime.redstoneFrozen = false
+            runtime.redstoneStage = RedstoneStage.Interpreted
+            runtime.redstoneProgress = "stale; waiting to rebuild"
+            runtime.lastMutationCounter = target.mutationCounter
+            runtime.lastMutationAt = System.currentTimeMillis()
+            completion(false)
+            refreshSidebar(force = true)
+            return
+        }
+
+        val build = result.getOrNull()
+        if (build == null) {
+            target.failCompile(result.exceptionOrNull()?.message)
+            runtime.compiling = false
+            runtime.redstoneFrozen = false
+            runtime.redstoneStage = RedstoneStage.Failed
+            runtime.redstoneProgress = target.lastError ?: "compile failed"
+            completion(false)
+            refreshSidebar(force = true)
+            return
+        }
+
+        runtime.redstoneStage = RedstoneStage.Activating
+        runtime.redstoneProgress = "activating"
+        target.activate(runtime.world, build)
+        runtime.compiling = false
+        runtime.redstoneFrozen = false
+        runtime.redstoneStage = RedstoneStage.Compiled
+        runtime.redstoneProgress = "compiled"
+        runtime.lastMutationCounter = target.mutationCounter
+        runtime.lastMutationAt = 0L
+        completion(true)
+        println("[optraix:${runtime.name}] compiled ${build.circuit.count} nodes, ${build.circuit.edgeCount} edges in ${build.millis}ms")
         refreshSidebar(force = true)
     }
 
@@ -352,7 +520,7 @@ class OptraIxServer(val config: ServerConfig) {
         val now = System.currentTimeMillis()
         for (runtime in worlds.all()) {
             val optraix = runtime.engine as? OptraIxEngine ?: continue
-            if (optraix.paused || optraix.manualCompileRequired) continue
+            if (runtime.desiredMode != RedstoneMode.Compiled || runtime.compiling) continue
             val counter = optraix.mutationCounter
             if (counter != runtime.lastMutationCounter) {
                 runtime.lastMutationCounter = counter
@@ -362,7 +530,7 @@ class OptraIxServer(val config: ServerConfig) {
             if (runtime.lastMutationAt == 0L || optraix.compiled) continue
             if (now - runtime.lastMutationAt < RecompileDelayMillis) continue
             runtime.lastMutationAt = 0L
-            compileRedstone(runtime, optraix)
+            requestCompile(runtime, optraix) {}
         }
     }
 
@@ -377,8 +545,9 @@ class OptraIxServer(val config: ServerConfig) {
             val optraix = runtime.engine as? OptraIxEngine
             val circuit = optraix?.circuit
             val state = when {
-                runtime.compiling -> "compiling" to Text.Yellow
-                optraix?.paused == true -> "paused" to Text.Gray
+                runtime.redstoneStage == RedstoneStage.Failed -> "failed" to Text.Red
+                runtime.redstoneFrozen -> runtime.redstoneStage.name.lowercase() to Text.Yellow
+                runtime.desiredMode == RedstoneMode.Interpreted -> "interpreted" to Text.Gray
                 circuit != null -> "compiled" to Text.Green
                 optraix?.lastError != null -> "failed" to Text.Red
                 optraix != null -> "interpreted" to Text.Yellow
@@ -478,7 +647,9 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun tickWorlds() {
-        for (runtime in worlds.all()) runtime.engine.tickWorld(runtime.world)
+        for (runtime in worlds.all()) {
+            if (!runtime.redstoneFrozen) runtime.engine.tickWorld(runtime.world)
+        }
     }
 
     private fun nextBatchSize(current: Int, batchNanos: Long): Int {
@@ -488,10 +659,8 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun runHousekeeping() {
-        while (true) {
-            val task = tasks.poll() ?: break
-            runCatching { task.run() }
-        }
+        runSubmittedTasks()
+        commands.tickWorldEdit()
         broadcastMovement()
         maintainConnections()
         maintainSelectionOutlines()
@@ -904,8 +1073,7 @@ class OptraIxServer(val config: ServerConfig) {
             }
             player.selectionOne = null
             player.selectionTwo = null
-            player.undoStack.clear()
-            player.redoStack.clear()
+            player.clearHistory()
             player.lastChunkX = Int.MIN_VALUE
             player.lastChunkZ = Int.MIN_VALUE
             player.moved = false
@@ -940,8 +1108,7 @@ class OptraIxServer(val config: ServerConfig) {
         player.worldName = target.name
         player.selectionOne = null
         player.selectionTwo = null
-        player.undoStack.clear()
-        player.redoStack.clear()
+        player.clearHistory()
         player.lastChunkX = Int.MIN_VALUE
         player.lastChunkZ = Int.MIN_VALUE
         player.moved = false
@@ -1097,6 +1264,7 @@ class OptraIxServer(val config: ServerConfig) {
         if (!players.remove(player)) return
         profiles.put(player)
         onlineCount = players.size
+        player.clearHistory()
         player.connection.close()
         broadcastWorld(runtime, ClientboundEntityDestroyPacket(listOf(player.entityId)))
         broadcast(ClientboundPlayerRemovePacket(listOf(player.uuid)))

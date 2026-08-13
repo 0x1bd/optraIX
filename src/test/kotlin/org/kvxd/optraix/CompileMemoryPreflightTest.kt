@@ -1,19 +1,15 @@
 package org.kvxd.optraix
 
 import kotlin.test.Test
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import org.kvxd.optraix.redstone.mutation.RecompilePolicy
-import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryPreflight
-import org.kvxd.optraix.redstone.optraix.OptraIxEngine
-import org.kvxd.optraix.world.GameWorld
+import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryStrategy
 
 class CompileMemoryPreflightTest {
 
     @Test
-    fun rejectsCompilationWhenHeapIsInsufficient() {
+    fun selectsSpillCompilationWhenHeapIsInsufficient() {
         val plan = CompileMemoryPreflight.evaluate(
             components = 4_000_000,
             wires = 10_646_595,
@@ -21,7 +17,8 @@ class CompileMemoryPreflightTest {
             systemAvailableBytes = 16L * 1024 * 1024 * 1024,
         )
 
-        assertNotNull(plan.failure)
+        assertNull(plan.failure)
+        assertTrue(plan.strategy == CompileMemoryStrategy.Spill)
     }
 
     @Test
@@ -34,19 +31,5 @@ class CompileMemoryPreflightTest {
         )
 
         assertNull(plan.failure)
-    }
-
-    @Test
-    fun successfulExplicitCompileClearsManualRequirement() {
-        val world = GameWorld()
-        val engine = OptraIxEngine()
-        engine.mutate(
-            world,
-            WorldMutationOptions(recompilePolicy = RecompilePolicy.Manual),
-        ) {}
-
-        assertTrue(engine.manualCompileRequired)
-        assertTrue(engine.compile(world))
-        assertTrue(!engine.manualCompileRequired)
     }
 }

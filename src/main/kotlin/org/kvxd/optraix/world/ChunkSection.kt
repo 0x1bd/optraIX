@@ -63,6 +63,7 @@ class ChunkSection {
         }
     }
 
+    @Synchronized
     fun set(index: Int, state: Int): Boolean {
         val previous = get(index)
         if (previous == state) return false
@@ -161,6 +162,15 @@ class ChunkSection {
         data = LongArray(0)
         blockCount = if (state == Blocks.Air.defaultState) 0 else 4096
     }
+
+    @Synchronized
+    fun snapshotCopy(): ChunkSection = restore(
+        bitsPerEntry = bitsPerEntry,
+        palette = palette.copyOf(),
+        paletteSize = paletteSize,
+        data = data.copyOf(),
+        blockCount = blockCount,
+    )
 
     companion object {
         const val DirectBits = 15

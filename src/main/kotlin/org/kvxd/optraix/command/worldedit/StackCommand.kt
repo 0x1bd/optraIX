@@ -43,7 +43,14 @@ class StackCommand(private val worldEdit: WorldEdit) : ServerCommand {
             return
         }
         val facing = resolve(source, direction) ?: return
-        source.success("stacked ${worldEdit.stack(source.player, region, count, facing)} blocks")
+        val submission = worldEdit.submitStack(source.player, region, count, facing, source::reply) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("stacked ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("stack cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("stack failed: ${outcome.message}")
+            }
+        }
+        if (!submission.completed) source.reply("stack #${submission.jobId} started; use //cancel to roll it back")
     }
 
     private fun resolve(source: CommandSource, direction: String?): BlockFacing? {

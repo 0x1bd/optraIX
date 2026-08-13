@@ -5,7 +5,6 @@ import org.kvxd.optraix.command.CommandSource
 import org.kvxd.optraix.command.ServerCommand
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
-import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 
 class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
@@ -27,11 +26,18 @@ class PasteCommand(private val worldEdit: WorldEdit) : ServerCommand {
             source.error("clipboard is empty")
             return
         }
-        val changed = worldEdit.paste(source.player, clipboard, includeAir)
-        source.success("pasted $changed blocks")
-        val engine = source.server.engineFor(source.player) as? OptraIxEngine
-        if (engine?.manualCompileRequired == true) {
-            source.reply("automatic compilation skipped for this bulk paste; run /optraix compile when ready")
+        val submission = worldEdit.submitPaste(
+            source.player,
+            clipboard,
+            includeAir,
+            source::reply,
+        ) { outcome ->
+            when (outcome) {
+                is EditOutcome.Completed -> source.success("pasted ${outcome.changed} blocks")
+                is EditOutcome.Cancelled -> source.reply("paste cancelled; restored ${outcome.restored} blocks")
+                is EditOutcome.Failed -> source.error("paste failed: ${outcome.message}")
+            }
         }
+        if (!submission.completed) source.reply("paste #${submission.jobId} started; use //cancel to roll it back")
     }
 }
