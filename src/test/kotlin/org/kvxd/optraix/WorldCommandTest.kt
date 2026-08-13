@@ -14,7 +14,7 @@ import org.kvxd.optraix.world.ChunkPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.WorldStorage
-import org.kvxd.optraix.worldedit.UndoEntry
+import org.kvxd.optraix.worldedit.history.UndoEntry
 import java.nio.file.Files
 import java.util.UUID
 import kotlin.test.Test

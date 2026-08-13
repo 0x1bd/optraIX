@@ -1,19 +1,10 @@
-package org.kvxd.optraix.redstone
+package org.kvxd.optraix.redstone.mutation
 
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.TickPriority
 import org.kvxd.optraix.world.World
-
-enum class RecompilePolicy {
-    Automatic,
-    Manual,
-}
-
-data class WorldMutationOptions(
-    val recompilePolicy: RecompilePolicy = RecompilePolicy.Automatic,
-)
 
 class WorldMutationContext internal constructor(
     internal val backingWorld: World,

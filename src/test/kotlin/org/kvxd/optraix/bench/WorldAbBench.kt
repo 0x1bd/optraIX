@@ -3,7 +3,7 @@ package org.kvxd.optraix.bench
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.redstone.optraix.NodeType
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WORLD_MIN_Y

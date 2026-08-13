@@ -1,4 +1,4 @@
-package org.kvxd.optraix.redstone.optraix
+package org.kvxd.optraix.redstone.optraix.compiler
 
 import org.kvxd.optraix.block.property.blockFace
 import org.kvxd.optraix.block.property.opposite
@@ -23,8 +23,16 @@ import org.kvxd.optraix.block.property.ComparatorMode
 import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.isNone
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
-
-class OptraIxCompileException(message: String) : RuntimeException(message)
+import org.kvxd.optraix.redstone.optraix.NodeType
+import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
+import org.kvxd.optraix.redstone.optraix.collection.IntBuffer
+import org.kvxd.optraix.redstone.optraix.collection.IntDeque
+import org.kvxd.optraix.redstone.optraix.collection.LongBuffer
+import org.kvxd.optraix.redstone.optraix.collection.LongIntMap
+import org.kvxd.optraix.redstone.optraix.graph.ChainFuser
+import org.kvxd.optraix.redstone.optraix.graph.GraphEdge
+import org.kvxd.optraix.redstone.optraix.graph.GraphNode
+import org.kvxd.optraix.redstone.optraix.graph.OptraIxGraph
 
 internal fun isComponentCandidate(state: Int): Boolean {
     if (BlockStates.pressurePlatePowered(state) != null || BlockStates.isButton(state)) return true

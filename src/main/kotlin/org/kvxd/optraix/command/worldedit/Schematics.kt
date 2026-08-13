@@ -2,8 +2,8 @@ package org.kvxd.optraix.command.worldedit
 
 import org.kvxd.optraix.Log
 import org.kvxd.optraix.command.CommandSource
-import org.kvxd.optraix.worldedit.Schematic
-import org.kvxd.optraix.worldedit.SchematicException
+import org.kvxd.optraix.worldedit.schematic.Schematic
+import org.kvxd.optraix.worldedit.schematic.SchematicException
 import java.io.File
 
 object Schematics {

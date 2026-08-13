@@ -1,6 +1,6 @@
 package org.kvxd.optraix.tools
 
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WorldStorage
 import java.io.File

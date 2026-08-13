@@ -16,6 +16,7 @@ import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.itemByProtocolId
 import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.mcdata.v1_20_4.Items as GeneratedItems
+import org.kvxd.optraix.net.viaversion.ViaVersionRuntime
 import org.kvxd.optraix.command.CommandRegistry
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.interaction.UseOnBlockContext
@@ -27,10 +28,10 @@ import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
-import org.kvxd.optraix.world.DefaultWorldName
+import org.kvxd.optraix.world.management.DefaultWorldName
 import org.kvxd.optraix.world.GameWorld
-import org.kvxd.optraix.world.ManagedWorld
-import org.kvxd.optraix.world.WorldManager
+import org.kvxd.optraix.world.management.ManagedWorld
+import org.kvxd.optraix.world.management.WorldManager
 import org.kvxd.optraix.world.WorldStorage
 import org.kvxd.kmcprotocol.core.ProtocolState
 import org.kvxd.kmcprotocol.generated.Protocols

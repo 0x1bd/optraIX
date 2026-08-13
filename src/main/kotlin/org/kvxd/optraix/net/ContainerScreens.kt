@@ -6,7 +6,7 @@ import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.ContainerKind
-import org.kvxd.optraix.redstone.WorldMutationContext
+import org.kvxd.optraix.redstone.mutation.WorldMutationContext
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundOpenWindowPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.clientbound.ClientboundWindowItemsPacket
 import org.kvxd.kmcprotocol.packets.generated.v1_20_4.types.Slot

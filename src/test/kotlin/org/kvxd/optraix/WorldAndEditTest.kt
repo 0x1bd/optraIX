@@ -12,7 +12,7 @@ import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WORLD_HEIGHT
 import org.kvxd.optraix.world.WORLD_MIN_Y
 import org.kvxd.optraix.net.ChunkPackets
-import org.kvxd.optraix.worldedit.Schematic
+import org.kvxd.optraix.worldedit.schematic.Schematic
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkFormat
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkSections
 import java.io.File
@@ -124,7 +124,7 @@ class WorldAndEditTest {
     @Test
     fun clipboardRotationIsIdentityAfterFourTurns() {
         val world = GameWorld()
-        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
             3, 1, 2, BlockPos(0, 0, 0), IntArray(6) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(2, BlockDirection.North, false, false)
@@ -144,7 +144,7 @@ class WorldAndEditTest {
 
     @Test
     fun clipboardRotationTurnsRepeaterFacing() {
-        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
             1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(2, BlockDirection.North, false, false)
@@ -155,7 +155,7 @@ class WorldAndEditTest {
 
     @Test
     fun clipboardRotationTurnsWireSides() {
-        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
             1, 1, 1, BlockPos(0, 0, 0), IntArray(1) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = Wire.make(WireSide.Side, WireSide.None, WireSide.Up, WireSide.None, 5)
@@ -168,7 +168,7 @@ class WorldAndEditTest {
 
     @Test
     fun clipboardFlipIsSelfInverse() {
-        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
             2, 1, 3, BlockPos(0, 0, 0), IntArray(6) { Blocks.Air.defaultState }
         )
         clipboard[0, 0, 0] = BlockStates.repeaterState(1, BlockDirection.East, false, false)

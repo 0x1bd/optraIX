@@ -6,13 +6,14 @@ import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.net.ChunkPackets
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
-import org.kvxd.optraix.redstone.RecompilePolicy
-import org.kvxd.optraix.redstone.WorldMutationContext
-import org.kvxd.optraix.redstone.WorldMutationOptions
+import org.kvxd.optraix.redstone.mutation.RecompilePolicy
+import org.kvxd.optraix.redstone.mutation.WorldMutationContext
+import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.world.BlockPos
-import org.kvxd.optraix.worldedit.Clipboard
+import org.kvxd.optraix.worldedit.clipboard.Clipboard
 import org.kvxd.optraix.worldedit.Region
-import org.kvxd.optraix.worldedit.UndoEntry
+import org.kvxd.optraix.worldedit.history.UndoAccumulator
+import org.kvxd.optraix.worldedit.history.UndoEntry
 
 class WorldEdit(private val server: OptraIxServer) {
 
@@ -372,24 +373,4 @@ class WorldEdit(private val server: OptraIxServer) {
         BlockFacing.Up -> BlockPos(0, region.sizeY, 0)
         BlockFacing.Down -> BlockPos(0, -region.sizeY, 0)
     }
-}
-
-private class UndoAccumulator(initialCapacity: Int) {
-    private var positions = LongArray(initialCapacity.coerceAtLeast(1))
-    private var states = IntArray(initialCapacity.coerceAtLeast(1))
-    var size: Int = 0
-        private set
-
-    fun add(position: Long, state: Int) {
-        if (size == positions.size) {
-            val capacity = if (size < 1 shl 20) size * 2 else size + (size shr 1)
-            positions = positions.copyOf(capacity)
-            states = states.copyOf(capacity)
-        }
-        positions[size] = position
-        states[size] = state
-        size++
-    }
-
-    fun build(): UndoEntry = UndoEntry(positions, states, size)
 }

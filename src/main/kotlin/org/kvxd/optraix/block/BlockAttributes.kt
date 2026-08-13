@@ -1,6 +1,5 @@
 package org.kvxd.optraix.block
 
-//TODO: fix this garbage
 object BlockAttributes {
 
     val solid = hashSetOf(

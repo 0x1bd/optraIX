@@ -3,7 +3,7 @@ package org.kvxd.optraix.player
 import org.kvxd.optraix.block.ItemStack
 import org.kvxd.optraix.block.mcData
 import org.kvxd.optraix.block.minecraftName
-import org.kvxd.optraix.world.DefaultWorldName
+import org.kvxd.optraix.world.management.DefaultWorldName
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File

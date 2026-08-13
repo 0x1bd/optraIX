@@ -29,7 +29,7 @@ class WorldEditTest {
         player.y = 10.0
         val stone = Blocks.Stone.defaultState
         val blocks = IntArray(250_001) { stone }
-        val clipboard = org.kvxd.optraix.worldedit.Clipboard(
+        val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
             250_001,
             1,
             1,

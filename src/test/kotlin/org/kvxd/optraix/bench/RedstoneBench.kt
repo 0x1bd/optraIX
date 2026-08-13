@@ -2,7 +2,7 @@ package org.kvxd.optraix.bench
 
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.world.GameWorld
 
 object RedstoneBench {

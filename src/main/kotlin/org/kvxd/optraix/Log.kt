@@ -1,6 +1,5 @@
 package org.kvxd.optraix
 
-//TODO: replace with a logging library (e.g. slf4j / kotlin-logging)
 object Log {
 
     fun info(scope: String, message: String) {

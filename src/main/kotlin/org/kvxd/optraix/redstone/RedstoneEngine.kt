@@ -3,6 +3,8 @@ package org.kvxd.optraix.redstone
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.block.property.BlockFace
+import org.kvxd.optraix.redstone.mutation.WorldMutationContext
+import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.World

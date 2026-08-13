@@ -7,7 +7,7 @@ import org.kvxd.optraix.block.property.LeverFace
 import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld

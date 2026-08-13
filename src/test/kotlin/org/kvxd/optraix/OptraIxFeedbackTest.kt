@@ -4,10 +4,10 @@ import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.block.property.BlockDirection
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
-import org.kvxd.optraix.redstone.optraix.ChainFuser
+import org.kvxd.optraix.redstone.optraix.graph.ChainFuser
 import org.kvxd.optraix.redstone.optraix.NodeType
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
-import org.kvxd.optraix.redstone.optraix.OptraIxGraph
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.graph.OptraIxGraph
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WorldGenerator

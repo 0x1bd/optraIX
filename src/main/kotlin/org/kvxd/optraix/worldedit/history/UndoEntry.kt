@@ -1,4 +1,4 @@
-package org.kvxd.optraix.worldedit
+package org.kvxd.optraix.worldedit.history
 
 class UndoEntry(
     val positions: LongArray,

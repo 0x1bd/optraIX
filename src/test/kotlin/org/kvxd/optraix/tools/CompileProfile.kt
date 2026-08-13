@@ -2,7 +2,7 @@ package org.kvxd.optraix.tools
 
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.SECTION_COUNT
 import org.kvxd.optraix.world.WorldStorage
@@ -88,7 +88,7 @@ object CompileProfile {
         println("total component candidates = $components")
 
         val preflightStart = System.nanoTime()
-        val plan = org.kvxd.optraix.redstone.optraix.CompileMemoryPreflight.evaluate(world)
+        val plan = org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryPreflight.evaluate(world)
         println(
             "preflight: needs ${mib(plan.requiredBytes)}, heap free ${mib(plan.heapAvailableBytes)}, " +
                 "system free ${mib(plan.systemAvailableBytes)}, verdict ${plan.failure ?: "ok"} " +

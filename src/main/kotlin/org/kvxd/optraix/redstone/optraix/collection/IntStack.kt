@@ -1,4 +1,4 @@
-package org.kvxd.optraix.redstone.optraix
+package org.kvxd.optraix.redstone.optraix.collection
 
 class IntStack(initial: Int = 16) {
 

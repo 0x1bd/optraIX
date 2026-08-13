@@ -67,7 +67,7 @@ object TickLoopBench {
         println()
 
         val circuit = BenchCircuit.busses(20, 20)
-        val compiled = org.kvxd.optraix.redstone.optraix.OptraIxCompiler.compile(circuit.world)
+        val compiled = org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler.compile(circuit.world)
         compiled.settle()
         repeat(200) { compiled.tick() }
         println("idle circuit: ${compiled.count} nodes, ${compiled.pendingTicks} pending")

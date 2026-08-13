@@ -1,7 +1,7 @@
 package org.kvxd.optraix.bench
 
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
-import org.kvxd.optraix.redstone.optraix.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 
 object OptraIxAbBench {
 

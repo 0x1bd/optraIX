@@ -12,10 +12,10 @@ import org.kvxd.optraix.block.property.RotateAmount
 import org.kvxd.optraix.command.worldedit.WorldEdit
 import org.kvxd.optraix.net.OptraIxServer
 import org.kvxd.optraix.player.Player
-import org.kvxd.optraix.redstone.optraix.CompileMemoryPreflight
+import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryPreflight
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.BlockPos
-import org.kvxd.optraix.worldedit.Schematic
+import org.kvxd.optraix.worldedit.schematic.Schematic
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 
 class SchematicStreamingTest {

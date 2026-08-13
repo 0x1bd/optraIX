@@ -1,4 +1,4 @@
-package org.kvxd.optraix.worldedit
+package org.kvxd.optraix.worldedit.schematic
 
 import java.io.DataInputStream
 import java.io.File
@@ -17,6 +17,8 @@ import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.mcData
+import org.kvxd.optraix.worldedit.clipboard.Clipboard
+import org.kvxd.optraix.worldedit.clipboard.SparseClipboardBuilder
 
 object Schematic {
 

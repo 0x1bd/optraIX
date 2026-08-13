@@ -1,4 +1,4 @@
-package org.kvxd.optraix.worldedit
+package org.kvxd.optraix.worldedit.schematic
 
 
 class SchematicException(message: String) : Exception(message)

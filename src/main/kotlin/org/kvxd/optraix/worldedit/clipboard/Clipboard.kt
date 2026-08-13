@@ -1,10 +1,11 @@
-package org.kvxd.optraix.worldedit
+package org.kvxd.optraix.worldedit.clipboard
 
 import org.kvxd.optraix.block.property.FlipDirection
 import org.kvxd.optraix.block.property.RotateAmount
+import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockPos
-import org.kvxd.optraix.mcdata.v1_20_4.Blocks
+import org.kvxd.optraix.worldedit.BlockTransform
 
 class Clipboard private constructor(
     val sizeX: Int,
@@ -144,87 +145,4 @@ class Clipboard private constructor(
             blocks: SparseClipboardBlocks,
         ): Clipboard = Clipboard(sizeX, sizeY, sizeZ, offset, blocks)
     }
-}
-
-private interface ClipboardBlocks {
-    val dense: IntArray?
-    val storedBlockCount: Int
-    operator fun get(index: Int): Int
-    operator fun set(index: Int, state: Int)
-    fun forEachNonAir(action: (Int, Int) -> Unit)
-}
-
-private class DenseClipboardBlocks(override val dense: IntArray) : ClipboardBlocks {
-    override val storedBlockCount: Int
-        get() = dense.count { it != Blocks.Air.defaultState }
-
-    override fun get(index: Int): Int = dense[index]
-
-    override fun set(index: Int, state: Int) {
-        dense[index] = state
-    }
-
-    override fun forEachNonAir(action: (Int, Int) -> Unit) {
-        dense.forEachIndexed { index, state ->
-            if (state != Blocks.Air.defaultState) action(index, state)
-        }
-    }
-}
-
-internal class SparseClipboardBlocks(
-    private val positions: IntArray,
-    private val states: IntArray,
-    override val storedBlockCount: Int,
-    private val sorted: Boolean,
-) : ClipboardBlocks {
-    override val dense: IntArray? = null
-
-    override fun get(index: Int): Int {
-        if (sorted) {
-            var low = 0
-            var high = storedBlockCount - 1
-            while (low <= high) {
-                val middle = (low + high) ushr 1
-                val position = positions[middle]
-                when {
-                    position < index -> low = middle + 1
-                    position > index -> high = middle - 1
-                    else -> return states[middle]
-                }
-            }
-            return Blocks.Air.defaultState
-        }
-        for (entry in 0 until storedBlockCount) {
-            if (positions[entry] == index) return states[entry]
-        }
-        return Blocks.Air.defaultState
-    }
-
-    override fun set(index: Int, state: Int) {
-        error("sparse clipboard blocks are immutable")
-    }
-
-    override fun forEachNonAir(action: (Int, Int) -> Unit) {
-        for (entry in 0 until storedBlockCount) action(positions[entry], states[entry])
-    }
-}
-
-internal class SparseClipboardBuilder(initialCapacity: Int = 1024) {
-    private var positions = IntArray(initialCapacity.coerceAtLeast(1))
-    private var states = IntArray(initialCapacity.coerceAtLeast(1))
-    private var size = 0
-
-    fun add(position: Int, state: Int) {
-        if (state == Blocks.Air.defaultState) return
-        if (size == positions.size) {
-            val capacity = if (size < 1 shl 20) size * 2 else size + (size shr 1)
-            positions = positions.copyOf(capacity)
-            states = states.copyOf(capacity)
-        }
-        positions[size] = position
-        states[size] = state
-        size++
-    }
-
-    fun build(sorted: Boolean): SparseClipboardBlocks = SparseClipboardBlocks(positions, states, size, sorted)
 }

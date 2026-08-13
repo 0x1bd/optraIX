@@ -1,5 +1,7 @@
 package org.kvxd.optraix.redstone.optraix
 
+import org.kvxd.optraix.redstone.optraix.collection.IntQueue
+import org.kvxd.optraix.redstone.optraix.collection.IntStack
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.redstone.mchprs.NoteBlock
 import org.kvxd.optraix.world.BlockEntity

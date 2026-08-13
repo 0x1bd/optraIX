@@ -22,7 +22,7 @@ import org.kvxd.optraix.mcdata.v1_20_4.Axis2
 import org.kvxd.optraix.mcdata.v1_20_4.BlockStates as GeneratedBlockStates
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.redstone.RedstoneEngine
-import org.kvxd.optraix.redstone.WorldMutationContext
+import org.kvxd.optraix.redstone.mutation.WorldMutationContext
 import org.kvxd.optraix.world.BlockEntities
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockEntityNbt

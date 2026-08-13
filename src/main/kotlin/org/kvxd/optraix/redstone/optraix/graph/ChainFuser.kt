@@ -1,4 +1,6 @@
-package org.kvxd.optraix.redstone.optraix
+package org.kvxd.optraix.redstone.optraix.graph
+
+import org.kvxd.optraix.redstone.optraix.NodeType
 
 object ChainFuser {
 

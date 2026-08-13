@@ -8,7 +8,7 @@ import org.kvxd.optraix.command.argument
 import org.kvxd.optraix.command.literal
 import org.kvxd.optraix.command.runs
 import org.kvxd.optraix.command.suggestMatching
-import org.kvxd.optraix.world.DefaultWorldName
+import org.kvxd.optraix.world.management.DefaultWorldName
 
 class WorldCommand : ServerCommand {
 
