@@ -20,6 +20,7 @@ class ServerConfigTest {
             maxPlayers = 42,
             viewDistance = 7,
             tps = 30,
+            clientUpdateRate = 750,
             compressionThreshold = -1,
             runDirectory = File("custom run"),
             autosaveSeconds = 90,
@@ -38,9 +39,13 @@ class ServerConfigTest {
         ServerConfig(port = 25565, viaversion = false).save(file)
         val persisted = file.readText()
 
-        val loaded = ServerConfig.load(arrayOf("--port", "25570", "--viaversion"), file)
+        val loaded = ServerConfig.load(
+            arrayOf("--port", "25570", "--client-update-rate", "750", "--viaversion"),
+            file,
+        )
 
         assertEquals(25570, loaded.port)
+        assertEquals(750, loaded.clientUpdateRate)
         assertTrue(loaded.viaversion)
         assertEquals(persisted, file.readText())
         assertEquals(25565, ServerConfig.fromProperties(file).port)

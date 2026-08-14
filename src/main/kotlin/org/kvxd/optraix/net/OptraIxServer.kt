@@ -276,6 +276,10 @@ class OptraIxServer(val config: ServerConfig) {
         println("optraix listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
         if (viaVersion != null) println("ViaVersion ${ViaVersionRuntime.Version}: enabled")
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
+        println(
+            "client update rate: " +
+                    if (config.clientUpdateRate == 0) "unlimited" else "${config.clientUpdateRate} Hz"
+        )
 
         for (runtime in worlds.all()) {
             submitRedstone(runtime, RedstoneMode.Compiled) {}
@@ -723,9 +727,10 @@ class OptraIxServer(val config: ServerConfig) {
                     var executed = 0
                     while (executed < batch && running) {
                         tickWorlds()
-                        publishWorldChanges()
+                        if (config.clientUpdateRate == 0) publishWorldChanges()
                         executed++
                     }
+                    if (config.clientUpdateRate > 0) publishWorldChanges()
                     currentTick += executed
                     ticksSinceSample += executed
                     runHousekeeping()
@@ -796,6 +801,11 @@ class OptraIxServer(val config: ServerConfig) {
     private var publishScope: CoroutineScope? = null
     private var lastPublish = 0L
     private val publishing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val clientUpdateIntervalNanos = if (config.clientUpdateRate == 0) {
+        0L
+    } else {
+        maxOf(1L, 1_000_000_000L / config.clientUpdateRate)
+    }
 
     private var pendingAcks = 0
 
@@ -835,7 +845,7 @@ class OptraIxServer(val config: ServerConfig) {
     internal fun publishWorldChanges() {
         val changed = worlds.all().filter {
             !it.redstoneFrozen &&
-                (it.world.changedBlocks.isNotEmpty() || it.world.changedBlockEntities.isNotEmpty())
+                    (it.world.changedBlocks.isNotEmpty() || it.world.changedBlockEntities.isNotEmpty())
         }
         if (changed.isEmpty()) {
             if (pendingAcks > 0) sendBlockAcks(takeBlockAcks())
@@ -850,7 +860,7 @@ class OptraIxServer(val config: ServerConfig) {
             return
         }
         val now = System.nanoTime()
-        if (pendingAcks == 0 && now - lastPublish < PublishIntervalNanos) return
+        if (pendingAcks == 0 && now - lastPublish < clientUpdateIntervalNanos) return
         if (!publishing.compareAndSet(false, true)) return
         lastPublish = now
         val acks = takeBlockAcks()
@@ -1073,7 +1083,13 @@ class OptraIxServer(val config: ServerConfig) {
                         if (config.compressionThreshold > 0) {
                             session.send(ClientboundCompressPacket(config.compressionThreshold))
                         }
-                        session.send(ClientboundSuccessPacket(offlineUuid(packet.username), packet.username, emptyList()))
+                        session.send(
+                            ClientboundSuccessPacket(
+                                offlineUuid(packet.username),
+                                packet.username,
+                                emptyList()
+                            )
+                        )
                     }
 
                     is org.kvxd.kmcprotocol.packets.generated.v1_20_4.login.serverbound.ServerboundLoginAcknowledgedPacket -> {
@@ -1143,6 +1159,7 @@ class OptraIxServer(val config: ServerConfig) {
                 }
                 session.send(ClientboundServerInfoPacket(json))
             }
+
             is StatusPingPacket -> session.send(StatusPongPacket(packet.time))
             else -> Unit
         }
@@ -1448,6 +1465,7 @@ class OptraIxServer(val config: ServerConfig) {
                 player.moved = true
                 updateChunks(player)
             }
+
             is ServerboundPositionLookPacket -> {
                 player.x = packet.x
                 player.y = packet.y
@@ -1458,12 +1476,14 @@ class OptraIxServer(val config: ServerConfig) {
                 player.moved = true
                 updateChunks(player)
             }
+
             is ServerboundLookPacket -> {
                 player.yaw = packet.yaw
                 player.pitch = packet.pitch
                 player.onGround = packet.onGround
                 player.moved = true
             }
+
             is ServerboundFlyingPacket -> player.onGround = packet.onGround
             is ServerboundHeldItemSlotPacket -> player.selectedSlot = packet.slotId.toInt().coerceIn(0, 8)
             is ServerboundPickItemPacket -> pickInventorySlot(player, packet.slot)
@@ -1476,8 +1496,10 @@ class OptraIxServer(val config: ServerConfig) {
                     )
                 }
             }
+
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundCloseWindowPacket ->
                 ContainerScreens.close(player)
+
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundWindowClickPacket -> {
                 if (packet.windowId.toInt() == ContainerScreens.WindowId) {
                     if (runtimeFor(player).redstoneFrozen) return
@@ -1505,26 +1527,31 @@ class OptraIxServer(val config: ServerConfig) {
                     player.carriedItem = toStack(packet.cursorItem)
                 }
             }
+
             is ServerboundEntityActionPacket -> {
                 when (packet.actionId) {
                     0 -> player.crouching = true
                     1 -> player.crouching = false
                 }
             }
+
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundAbilitiesPacket -> {
                 player.flying = (packet.flags.toInt() and 0x02) != 0
             }
+
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundKeepAlivePacket -> {
                 if (packet.keepAliveId == player.lastKeepAlive) {
                     player.latency = (System.currentTimeMillis() - packet.keepAliveId).toInt()
                 }
             }
+
             is ServerboundBlockDigPacket -> handleDig(player, packet)
             is ServerboundBlockPlacePacket -> handlePlace(player, packet)
             is ServerboundChatMessagePacket -> broadcastMessage("<${player.name}> ${packet.message}")
             is ServerboundChatCommandPacket -> commands.execute(player, packet.command)
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundTabCompletePacket ->
                 commands.complete(player, packet.transactionId, packet.text)
+
             is ServerboundUpdateSignPacket -> handleSignUpdate(player, packet)
             else -> Unit
         }
@@ -1751,7 +1778,6 @@ class OptraIxServer(val config: ServerConfig) {
         const val SelectionOutlineIntervalMillis = 1_000L
         const val RecompileDelayMillis = 3_000L
         const val PlateReleaseMillis = 1_000L
-        const val PublishIntervalNanos = 50_000_000L
         const val SidebarIntervalMillis = 500L
         const val WaitForChunksReason: Short = 13
         const val PickBlockRangeSquared = 30.25

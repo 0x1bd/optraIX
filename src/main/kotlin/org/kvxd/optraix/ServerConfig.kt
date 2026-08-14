@@ -12,6 +12,7 @@ data class ServerConfig(
     val maxPlayers: Int = 100,
     val viewDistance: Int = 10,
     val tps: Int = 20,
+    val clientUpdateRate: Int = 500,
     val compressionThreshold: Int = 256,
     val runDirectory: File = File("run"),
     val autosaveSeconds: Int = 300,
@@ -42,6 +43,7 @@ data class ServerConfig(
                 appendProperty("max-players", maxPlayers)
                 appendProperty("view-distance", viewDistance)
                 appendProperty("tps", tps)
+                appendProperty("client-update-rate", clientUpdateRate)
                 appendProperty("compression-threshold", compressionThreshold)
                 appendProperty("run-dir", runDirectory.path)
                 appendProperty("autosave-seconds", autosaveSeconds)
@@ -65,6 +67,9 @@ data class ServerConfig(
                     result.copy(viewDistance = requireInt(args, ++index, argument))
 
                 argument == "--tps" -> result = result.copy(tps = requireInt(args, ++index, argument))
+                argument == "--client-update-rate" -> {
+                    result = result.copy(clientUpdateRate = requireInt(args, ++index, argument))
+                }
                 argument == "--compression-threshold" -> {
                     result = result.copy(compressionThreshold = requireInt(args, ++index, argument))
                 }
@@ -103,6 +108,7 @@ data class ServerConfig(
         require(maxPlayers >= 0) { "$source: max-players must be at least 0" }
         require(viewDistance >= 0) { "$source: view-distance must be at least 0" }
         require(tps > 0) { "$source: tps must be greater than 0" }
+        require(clientUpdateRate >= 0) { "$source: client-update-rate must be at least 0" }
         require(compressionThreshold >= -1) { "$source: compression-threshold must be at least -1" }
         require(autosaveSeconds >= 0) { "$source: autosave-seconds must be at least 0" }
         return this
@@ -128,6 +134,7 @@ data class ServerConfig(
                 maxPlayers = properties.int("max-players", 100, file),
                 viewDistance = properties.int("view-distance", 10, file),
                 tps = properties.int("tps", 20, file),
+                clientUpdateRate = properties.int("client-update-rate", 500, file),
                 compressionThreshold = properties.int("compression-threshold", 256, file),
                 runDirectory = File(properties.string("run-dir", "run")),
                 autosaveSeconds = properties.int("autosave-seconds", 300, file),

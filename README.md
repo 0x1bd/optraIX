@@ -25,6 +25,7 @@ The following command line options are available:
 --port <port>
 --view-distance <chunks>
 --tps <ticks-per-second>
+--client-update-rate <updates-per-second, 0 for unlimited>
 --run-dir <directory>
 ```
 
