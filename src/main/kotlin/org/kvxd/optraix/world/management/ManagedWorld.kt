@@ -22,15 +22,28 @@ class ManagedWorld(
     var lastMutationCounter: Long = 0L
     var lastMutationAt: Long = 0L
     @Volatile
-    var desiredMode: RedstoneMode = RedstoneMode.Compiled
+    internal var redstoneSubmission = RedstoneSubmission(RedstoneMode.Compiled)
+        private set
+    val desiredMode: RedstoneMode
+        get() = redstoneSubmission.mode
     var redstoneStage: RedstoneStage = RedstoneStage.Interpreted
     var redstoneProgress: String = ""
     var redstoneFrozen: Boolean = false
-    @Volatile
-    var compileTicket: Long = 0L
+    var redstoneWorkerActive: Boolean = false
     var editJobId: Long? = null
     var editOwner: UUID? = null
     val plateHeldUntil = HashMap<Long, Long>()
+
+    internal fun submitRedstone(
+        mode: RedstoneMode,
+        completion: (Boolean) -> Unit = {},
+    ): RedstoneSubmission {
+        val submission = RedstoneSubmission(mode, completion)
+        redstoneSubmission = submission
+        return submission
+    }
+
+    internal fun supersedeRedstone(): RedstoneSubmission = submitRedstone(desiredMode)
 
     fun useEngine(next: RedstoneEngine) {
         engine = next

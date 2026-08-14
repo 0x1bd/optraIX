@@ -39,12 +39,10 @@ class OptraIxCommand : ServerCommand {
     private fun compile(source: CommandSource) {
         val engine = engineOf(source)
         val server = source.server
-        val runtime = server.runtimeFor(source.player)
-        runtime.desiredMode = RedstoneMode.Compiled
         source.reply("compiling...")
-        server.requestCompile(source.player, engine) { ok ->
+        server.submitRedstone(source.player, RedstoneMode.Compiled) { ok ->
             if (ok) {
-                val circuit = engine.circuit ?: return@requestCompile
+                val circuit = engine.circuit ?: return@submitRedstone
                 source.success("compile finished (${engine.compileMillis}ms)")
                 source.reply("  nodes:   ${circuit.count}")
                 source.reply("  edges:   ${circuit.edgeCount}")
@@ -67,12 +65,15 @@ class OptraIxCommand : ServerCommand {
             return
         }
         val runtime = server.runtimeFor(source.player)
-        if (runtime.redstoneFrozen && runtime.desiredMode == RedstoneMode.Interpreted) {
+        if (
+            runtime.desiredMode == RedstoneMode.Interpreted &&
+            (runtime.redstoneWorkerActive || runtime.editJobId != null)
+        ) {
             source.reply("optraix is already transitioning to interpreted mode")
             return
         }
         source.reply("pausing; materializing interpreted redstone in the background...")
-        server.requestPause(source.player, engine) { ok ->
+        server.submitRedstone(source.player, RedstoneMode.Interpreted) { ok ->
             if (ok) source.success("optraix paused, running interpreted until /optraix resume")
             else source.error("pause failed: ${engine.lastError}")
         }
@@ -81,19 +82,15 @@ class OptraIxCommand : ServerCommand {
     private fun resume(source: CommandSource) {
         val engine = engineOf(source)
         val server = source.server
-        server.submit {
-            val runtime = server.runtimeFor(source.player)
-            runtime.desiredMode = RedstoneMode.Compiled
-            if (!engine.paused && engine.compiled) {
-                source.reply("optraix is not paused")
-                return@submit
-            }
-            engine.resume()
-            source.reply("compiling...")
-            server.requestCompile(source.player, engine) { ok ->
-                if (ok) source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
-                else source.reply("compile failed: ${engine.lastError}")
-            }
+        val runtime = server.runtimeFor(source.player)
+        if (!engine.paused && engine.compiled && !runtime.redstoneWorkerActive) {
+            source.reply("optraix is not paused")
+            return
+        }
+        source.reply("compiling...")
+        server.submitRedstone(source.player, RedstoneMode.Compiled) { ok ->
+            if (ok) source.success("optraix resumed (compiled in ${engine.compileMillis}ms)")
+            else source.reply("compile failed: ${engine.lastError}")
         }
     }
 

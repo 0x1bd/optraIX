@@ -12,6 +12,7 @@ import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.worldedit.Region
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.locks.LockSupport
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -26,7 +27,7 @@ class WorldEditTest {
     @Test
     fun cooperativeMovePreservesOverlappingSourceAndUndo() {
         val server = server()
-        server.worlds.default.desiredMode = RedstoneMode.Interpreted
+        useInterpretedRedstone(server)
         val player = player(server)
         val worldEdit = WorldEdit(server)
         val first = Blocks.Stone.defaultState
@@ -60,7 +61,7 @@ class WorldEditTest {
     @Test
     fun largePasteYieldsAndCanRollback() {
         val server = server()
-        server.worlds.default.desiredMode = RedstoneMode.Interpreted
+        useInterpretedRedstone(server)
         val player = player(server)
         player.y = 10.0
         val clipboard = org.kvxd.optraix.worldedit.clipboard.Clipboard(
@@ -83,6 +84,10 @@ class WorldEditTest {
         assertTrue(outcome is EditOutcome.Cancelled)
         assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(0, 10, 0)))
         assertEquals(Blocks.Air.defaultState, server.world.getBlock(BlockPos(16_000, 10, 0)))
+        repeat(200) {
+            server.runSubmittedTasks()
+            if (server.worlds.default.redstoneFrozen) LockSupport.parkNanos(1_000_000L)
+        }
         assertTrue(!server.worlds.default.redstoneFrozen)
     }
 
@@ -111,6 +116,16 @@ class WorldEditTest {
 
     private fun server(): OptraIxServer =
         OptraIxServer(ServerConfig(port = 0, runDirectory = File("build/tmp/worldedit-test")))
+
+    private fun useInterpretedRedstone(server: OptraIxServer) {
+        var completed = false
+        server.submitRedstone(RedstoneMode.Interpreted) { completed = it }
+        repeat(200) {
+            server.runSubmittedTasks()
+            if (!completed) LockSupport.parkNanos(1_000_000L)
+        }
+        assertTrue(completed)
+    }
 
     private fun player(server: OptraIxServer): Player =
         Player(1, UUID.randomUUID(), "Tester", RecordingSink())
