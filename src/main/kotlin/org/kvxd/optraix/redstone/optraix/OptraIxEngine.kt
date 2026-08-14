@@ -10,6 +10,7 @@ import org.kvxd.optraix.redstone.mutation.WorldMutationContext
 import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.collection.LongBuffer
 import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryPreflight
+import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryStrategy
 import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompileException
 import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
 import org.kvxd.optraix.redstone.optraix.compiler.sectionHasCandidates
@@ -27,6 +28,7 @@ class OptraIxEngine : RedstoneEngine {
 
     override val stats: RedstoneStats = RedstoneStats()
 
+    @Volatile
     var circuit: OptraIxCircuit? = null
         private set
 
@@ -38,6 +40,7 @@ class OptraIxEngine : RedstoneEngine {
 
     val compiled: Boolean get() = circuit != null
 
+    @Volatile
     var paused: Boolean = false
         private set
 
@@ -69,12 +72,16 @@ class OptraIxEngine : RedstoneEngine {
         stageListener: ((String) -> Unit)? = null,
         cancelled: () -> Boolean = { false },
     ): OptraIxBuild {
-        if (enforceMemoryBudget) {
-            CompileMemoryPreflight.evaluate(world).failure?.let { throw OptraIxCompileException(it) }
-        }
+        val memoryPlan = if (enforceMemoryBudget) CompileMemoryPreflight.evaluate(world) else null
+        memoryPlan?.failure?.let { throw OptraIxCompileException(it) }
+        val boundedMemory = memoryPlan?.strategy == CompileMemoryStrategy.Spill
         val started = System.nanoTime()
         val built = OptraIxCompiler.compile(
             world,
+            fuseChains = !boundedMemory,
+            regionChunks = if (boundedMemory) 1 else OptraIxCompiler.DefaultRegionChunks,
+            boundedMemory = boundedMemory,
+            expectedComponents = memoryPlan?.components?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: 0,
             stageListener = { stage, _ -> stageListener?.invoke(stage) },
             cancelled = cancelled,
         )
@@ -109,6 +116,14 @@ class OptraIxEngine : RedstoneEngine {
         materializeWires(world)
     }
 
+    internal fun pauseForTransition(world: GameWorld, cancelled: () -> Boolean): Boolean {
+        if (cancelled()) return false
+        detach(world, materialize = false)
+        if (cancelled() || !materializeWires(world, cancelled)) return false
+        paused = true
+        return true
+    }
+
     private fun detach(world: GameWorld, materialize: Boolean) {
         val active = circuit ?: return
         circuit = null
@@ -117,10 +132,12 @@ class OptraIxEngine : RedstoneEngine {
         active.exportPendingTicks(world)
     }
 
-    private fun materializeWires(world: GameWorld) {
+    private fun materializeWires(world: GameWorld, cancelled: () -> Boolean = { false }): Boolean {
         LongBuffer().use { wires ->
             for (chunk in world.snapshotChunks()) {
+                if (cancelled()) return false
                 for (sectionIndex in 0 until SECTION_COUNT) {
+                    if (cancelled()) return false
                     val section = chunk.sections[sectionIndex] ?: continue
                     if (section.blockCount == 0 || !sectionHasCandidates(section)) continue
                     section.forEachState { slot, state ->
@@ -137,8 +154,10 @@ class OptraIxEngine : RedstoneEngine {
             }
 
             repeat(16) {
+                if (cancelled()) return false
                 var changed = false
                 for (index in 0 until wires.size) {
+                    if ((index and 4095) == 0 && cancelled()) return false
                     val pos = BlockPos.unpack(wires[index])
                     val state = world.getBlock(pos)
                     if (!BlockStates.isType(state, Blocks.RedstoneWire)) continue
@@ -147,8 +166,9 @@ class OptraIxEngine : RedstoneEngine {
                     world.setBlock(pos, BlockStates.wireWithPower(state, power))
                     changed = true
                 }
-                if (!changed) return
+                if (!changed) return true
             }
+            return true
         }
     }
 

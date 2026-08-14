@@ -2,6 +2,7 @@ package org.kvxd.optraix.redstone.optraix
 
 import org.kvxd.optraix.redstone.optraix.collection.IntQueue
 import org.kvxd.optraix.redstone.optraix.collection.IntStack
+import org.kvxd.optraix.redstone.optraix.collection.LongIntLookup
 import org.kvxd.optraix.block.BlockStates
 import org.kvxd.optraix.redstone.mchprs.NoteBlock
 import org.kvxd.optraix.world.BlockEntity
@@ -16,6 +17,7 @@ import org.kvxd.optraix.mcdata.v1_20_4.Instrument
 
 class OptraIxCircuit internal constructor(
     val count: Int,
+    val nodeTypeCounts: IntArray,
     internal val posKey: LongArray,
     internal val baseState: IntArray,
     internal val delayData: ByteArray,
@@ -25,7 +27,7 @@ class OptraIxCircuit internal constructor(
     internal val farOverride: ByteArray,
     internal val edgeStart: IntArray,
     internal val edges: IntArray,
-    internal val index: HashMap<Long, Int>,
+    internal val index: LongIntLookup,
     private val state: LongArray,
     private val histBase: IntArray,
     private val counts: ByteArray,
@@ -39,7 +41,7 @@ class OptraIxCircuit internal constructor(
     private val linkPos: LongArray,
     private val linkFacing: ByteArray,
     private val linkOn: ByteArray,
-    internal val linkIndex: HashMap<Long, Int>,
+    internal val linkIndex: LongIntLookup,
 ) {
 
     private val scheduler = TickScheduler(count)
@@ -535,7 +537,7 @@ class OptraIxCircuit internal constructor(
         }
     }
 
-    fun nodeAt(pos: BlockPos): Int = index[pos.asLong()] ?: -1
+    fun nodeAt(pos: BlockPos): Int = index[pos.asLong()]
 
     fun typeOf(node: Int): Int = (state[node] and 0xFL).toInt()
 

@@ -93,6 +93,7 @@ import io.ktor.network.sockets.InetSocketAddress
 import java.io.File
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.redstone.optraix.OptraIxBuild
+import org.kvxd.optraix.redstone.optraix.compiler.CompileWorldSnapshot
 import java.util.UUID
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.Executors
@@ -179,7 +180,7 @@ class OptraIxServer(val config: ServerConfig) {
 
     fun beginWorldEdit(player: Player, jobId: Long): Boolean {
         val runtime = runtimeFor(player)
-        if (runtime.editJobId != null) return false
+        if (runtime.editJobId != null || runtime.redstoneFrozen) return false
         runtime.editJobId = jobId
         runtime.editOwner = player.uuid
         runtime.compileTicket++
@@ -345,7 +346,7 @@ class OptraIxServer(val config: ServerConfig) {
 
         var total = 0
         for (runtime in worlds.all()) {
-            if (runtime.editJobId != null) continue
+            if (runtime.editJobId != null || runtime.redstoneFrozen) continue
             val activeCircuit = (runtime.engine as? OptraIxEngine)?.circuit
             val worldToSave = if (activeCircuit == null) {
                 runtime.world
@@ -402,19 +403,36 @@ class OptraIxServer(val config: ServerConfig) {
             completion(false)
             return
         }
+        val superseding = runtime.redstoneFrozen
         val ticket = ++runtime.compileTicket
         runtime.compiling = true
         runtime.redstoneFrozen = true
-        runtime.redstoneStage = RedstoneStage.Snapshotting
-        runtime.redstoneProgress = "snapshotting"
+        runtime.redstoneStage =
+            if (superseding) RedstoneStage.Queued else RedstoneStage.Reconciling
+        runtime.redstoneProgress =
+            if (superseding) "cancelling previous transition" else "leaving compiled mode"
         refreshSidebar(force = true)
 
-        target.resume()
-        target.suspendForTransition(runtime.world)
         val generation = target.mutationCounter
         compileExecutor.execute {
             val result = runCatching {
-                val snapshot = runtime.world.copyForSave()
+                if (runtime.compileTicket != ticket) throw InterruptedException("compile cancelled")
+                submit {
+                    if (runtime.compileTicket == ticket) {
+                        runtime.redstoneStage = RedstoneStage.Reconciling
+                        runtime.redstoneProgress = "leaving compiled mode"
+                    }
+                }
+                target.resume()
+                target.suspendForTransition(runtime.world)
+                if (runtime.compileTicket != ticket) throw InterruptedException("compile cancelled")
+                submit {
+                    if (runtime.compileTicket == ticket) {
+                        runtime.redstoneStage = RedstoneStage.Snapshotting
+                        runtime.redstoneProgress = "snapshotting"
+                    }
+                }
+                val snapshot = CompileWorldSnapshot.create(runtime.world)
                 submit {
                     if (runtime.compileTicket == ticket) {
                         runtime.redstoneFrozen = false
@@ -440,6 +458,56 @@ class OptraIxServer(val config: ServerConfig) {
             }
             submit {
                 finishCompile(runtime, target, ticket, generation, result, completion)
+            }
+        }
+    }
+
+    fun requestPause(
+        player: Player,
+        target: OptraIxEngine,
+        completion: (Boolean) -> Unit = {},
+    ) {
+        val runtime = runtimeFor(player)
+        runtime.desiredMode = RedstoneMode.Interpreted
+        val superseding = runtime.redstoneFrozen
+        val ticket = ++runtime.compileTicket
+        runtime.compiling = false
+        runtime.redstoneFrozen = true
+        runtime.redstoneStage =
+            if (superseding) RedstoneStage.Queued else RedstoneStage.Reconciling
+        runtime.redstoneProgress =
+            if (superseding) "cancelling previous transition" else "materializing interpreted redstone"
+        refreshSidebar(force = true)
+        compileExecutor.execute {
+            val result = runCatching {
+                if (runtime.compileTicket != ticket) throw InterruptedException("pause cancelled")
+                submit {
+                    if (runtime.compileTicket == ticket) {
+                        runtime.redstoneStage = RedstoneStage.Reconciling
+                        runtime.redstoneProgress = "materializing interpreted redstone"
+                    }
+                }
+                val completed = target.pauseForTransition(runtime.world) {
+                    runtime.compileTicket != ticket ||
+                        runtime.desiredMode != RedstoneMode.Interpreted ||
+                        !running
+                }
+                if (!completed) throw InterruptedException("pause cancelled")
+            }
+            submit {
+                if (runtime.compileTicket != ticket) return@submit
+                runtime.redstoneFrozen = false
+                if (result.isSuccess) {
+                    runtime.redstoneStage = RedstoneStage.Interpreted
+                    runtime.redstoneProgress = "interpreted"
+                    completion(true)
+                } else {
+                    target.failCompile(result.exceptionOrNull()?.message)
+                    runtime.redstoneStage = RedstoneStage.Failed
+                    runtime.redstoneProgress = target.lastError ?: "pause failed"
+                    completion(false)
+                }
+                refreshSidebar(force = true)
             }
         }
     }
@@ -497,6 +565,7 @@ class OptraIxServer(val config: ServerConfig) {
         val now = System.currentTimeMillis()
         for (player in players) {
             val runtime = runtimeFor(player)
+            if (runtime.redstoneFrozen) continue
             val world = runtime.world
             val pos = BlockPos(floor(player.x).toInt(), floor(player.y).toInt(), floor(player.z).toInt())
             if (BlockStates.pressurePlatePowered(world.getBlock(pos)) == null) continue
@@ -505,6 +574,7 @@ class OptraIxServer(val config: ServerConfig) {
             }
         }
         for (runtime in worlds.all()) {
+            if (runtime.redstoneFrozen) continue
             if (runtime.plateHeldUntil.isEmpty()) continue
             val iterator = runtime.plateHeldUntil.entries.iterator()
             while (iterator.hasNext()) {
@@ -711,7 +781,8 @@ class OptraIxServer(val config: ServerConfig) {
 
     internal fun publishWorldChanges() {
         val changed = worlds.all().filter {
-            it.world.changedBlocks.isNotEmpty() || it.world.changedBlockEntities.isNotEmpty()
+            !it.redstoneFrozen &&
+                (it.world.changedBlocks.isNotEmpty() || it.world.changedBlockEntities.isNotEmpty())
         }
         if (changed.isEmpty()) {
             if (pendingAcks > 0) sendBlockAcks(takeBlockAcks())
@@ -740,25 +811,19 @@ class OptraIxServer(val config: ServerConfig) {
                 continue
             }
 
-            val blocks = LongArray(world.changedBlocks.size)
+            val blocks = world.changedBlocks.drain()
             val states = IntArray(blocks.size)
-            var index = 0
-            for (packed in world.changedBlocks) {
-                blocks[index] = packed
+            for (index in blocks.indices) {
+                val packed = blocks[index]
                 states[index] = world.getBlock(BlockPos.unpack(packed))
-                index++
             }
-            world.changedBlocks.clear()
 
-            val entityKeys = LongArray(world.changedBlockEntities.size)
+            val entityKeys = world.changedBlockEntities.drain()
             val entities = arrayOfNulls<BlockEntity>(entityKeys.size)
-            index = 0
-            for (packed in world.changedBlockEntities) {
-                entityKeys[index] = packed
+            for (index in entityKeys.indices) {
+                val packed = entityKeys[index]
                 entities[index] = world.getBlockEntity(BlockPos.unpack(packed))
-                index++
             }
-            world.changedBlockEntities.clear()
             batches += WorldChangeBatch(runtime, blocks, states, entityKeys, entities)
         }
 
@@ -1356,6 +1421,7 @@ class OptraIxServer(val config: ServerConfig) {
                 ContainerScreens.close(player)
             is org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundWindowClickPacket -> {
                 if (packet.windowId.toInt() == ContainerScreens.WindowId) {
+                    if (runtimeFor(player).redstoneFrozen) return
                     val containerPos = player.openContainer
                     if (containerPos != null && packet.changedSlots.isNotEmpty()) {
                         val engine = engineFor(player)
@@ -1406,6 +1472,7 @@ class OptraIxServer(val config: ServerConfig) {
     }
 
     private fun handleSignUpdate(player: Player, packet: ServerboundUpdateSignPacket) {
+        if (runtimeFor(player).redstoneFrozen) return
         val world = worldFor(player)
         val pos = BlockPos(packet.location.x, packet.location.y, packet.location.z)
         val lines = listOf(packet.text1, packet.text2, packet.text3, packet.text4)
@@ -1532,6 +1599,12 @@ class OptraIxServer(val config: ServerConfig) {
             return
         }
         queueBlockAck(player, packet.sequence)
+        if (runtimeFor(player).redstoneFrozen) {
+            player.connection.send(
+                ClientboundBlockChangePacket(Position(pos.x, pos.z, pos.y), world.getBlock(pos))
+            )
+            return
+        }
         when (packet.status) {
             0 -> {
                 val held = player.heldItem
@@ -1558,6 +1631,12 @@ class OptraIxServer(val config: ServerConfig) {
 
         if (held != null && held.item.name == "minecraft:wooden_axe") {
             commands.worldEdit.setPositionTwo(player, pos)
+            return
+        }
+        if (runtimeFor(player).redstoneFrozen) {
+            player.connection.send(
+                ClientboundBlockChangePacket(Position(pos.x, pos.z, pos.y), world.getBlock(pos))
+            )
             return
         }
 

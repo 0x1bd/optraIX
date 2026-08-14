@@ -53,7 +53,7 @@ tool(
     taskGroup = "tools",
     argsProperty = "profileArgs",
 ) {
-    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "12g"}")
+    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "512m"}")
 }
 
 tool(
@@ -63,7 +63,7 @@ tool(
     taskGroup = "tools",
     argsProperty = "profileArgs",
 ) {
-    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "12g"}")
+    jvmArgs = listOf("-Xmx${findProperty("profileHeap") ?: "512m"}")
 }
 
 tool(

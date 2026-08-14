@@ -1,12 +1,18 @@
 package org.kvxd.optraix.redstone.optraix.compiler
 
 internal data class CompileMemoryPlan(
+    val components: Long,
+    val wires: Long,
     val requiredBytes: Long,
     val heapAvailableBytes: Long,
     val systemAvailableBytes: Long,
 ) {
     val strategy: CompileMemoryStrategy
-        get() = if (heapAvailableBytes >= requiredBytes) CompileMemoryStrategy.InMemory else CompileMemoryStrategy.Spill
+        get() = if (heapAvailableBytes - (heapAvailableBytes / 5) >= requiredBytes) {
+            CompileMemoryStrategy.InMemory
+        } else {
+            CompileMemoryStrategy.Spill
+        }
 
     val failure: String?
         get() = when {
@@ -19,6 +25,6 @@ internal data class CompileMemoryPlan(
 
     private companion object {
         const val Mib = 1024L * 1024L
-        const val MinimumSystemBytes = 256L * Mib
+        const val MinimumSystemBytes = 128L * Mib
     }
 }

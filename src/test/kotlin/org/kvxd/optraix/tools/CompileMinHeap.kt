@@ -1,6 +1,7 @@
 package org.kvxd.optraix.tools
 
 import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryPreflight
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WorldStorage
 import java.io.File
@@ -13,9 +14,15 @@ object CompileMinHeap {
         val runtime = Runtime.getRuntime()
         val world = GameWorld()
         WorldStorage.load(world, File(path))
-        val regionChunks = args.getOrNull(1)?.toIntOrNull() ?: OptraIxCompiler.DefaultRegionChunks
+        val regionChunks = args.getOrNull(1)?.toIntOrNull() ?: 1
+        val plan = CompileMemoryPreflight.evaluate(world)
         val started = System.nanoTime()
-        val circuit = OptraIxCompiler.compile(world, regionChunks = regionChunks)
+        val circuit = OptraIxCompiler.compile(
+            world,
+            regionChunks = regionChunks,
+            boundedMemory = true,
+            expectedComponents = plan.components.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        )
         println(
             "compiled ${circuit.count} nodes, regionChunks=$regionChunks, " +
                 "heap ${runtime.maxMemory() / 1048576} MiB, ${(System.nanoTime() - started) / 1_000_000}ms"

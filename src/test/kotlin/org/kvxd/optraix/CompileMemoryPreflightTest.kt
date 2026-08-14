@@ -9,7 +9,7 @@ import org.kvxd.optraix.redstone.optraix.compiler.CompileMemoryStrategy
 class CompileMemoryPreflightTest {
 
     @Test
-    fun selectsSpillCompilationWhenHeapIsInsufficient() {
+    fun keepsTheLargeReferenceCompileWithin512MiB() {
         val plan = CompileMemoryPreflight.evaluate(
             components = 4_000_000,
             wires = 10_646_595,
@@ -18,6 +18,7 @@ class CompileMemoryPreflightTest {
         )
 
         assertNull(plan.failure)
+        assertTrue(plan.requiredBytes < 512L * 1024 * 1024)
         assertTrue(plan.strategy == CompileMemoryStrategy.Spill)
     }
 
@@ -31,5 +32,19 @@ class CompileMemoryPreflightTest {
         )
 
         assertNull(plan.failure)
+    }
+
+    @Test
+    fun acceptsARealisticLargeCompileWithA256MiBBudget() {
+        val plan = CompileMemoryPreflight.evaluate(
+            components = 1_000_000,
+            wires = 10_000_000,
+            heapAvailableBytes = 256L * 1024 * 1024,
+            systemAvailableBytes = 256L * 1024 * 1024,
+        )
+
+        assertNull(plan.failure)
+        assertTrue(plan.requiredBytes < 512L * 1024 * 1024)
+        assertTrue(plan.strategy == CompileMemoryStrategy.InMemory)
     }
 }

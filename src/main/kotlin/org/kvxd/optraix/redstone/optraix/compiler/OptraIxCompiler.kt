@@ -28,9 +28,9 @@ import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
 import org.kvxd.optraix.redstone.optraix.collection.IntBuffer
 import org.kvxd.optraix.redstone.optraix.collection.IntDeque
 import org.kvxd.optraix.redstone.optraix.collection.LongBuffer
+import org.kvxd.optraix.redstone.optraix.collection.LongIntLookup
 import org.kvxd.optraix.redstone.optraix.collection.LongIntMap
 import org.kvxd.optraix.redstone.optraix.graph.ChainFuser
-import org.kvxd.optraix.redstone.optraix.graph.GraphEdge
 import org.kvxd.optraix.redstone.optraix.graph.GraphNode
 import org.kvxd.optraix.redstone.optraix.graph.OptraIxGraph
 
@@ -62,12 +62,14 @@ object OptraIxCompiler {
         eliminateWire: Boolean = true,
         fuseChains: Boolean = true,
         regionChunks: Int = DefaultRegionChunks,
+        boundedMemory: Boolean = false,
+        expectedComponents: Int = 0,
         stageListener: ((String, OptraIxGraph?) -> Unit)? = null,
         cancelled: () -> Boolean = { false },
     ): OptraIxCircuit {
         checkCancelled(cancelled)
-        val graph = OptraIxGraph()
-        val wires = if (eliminateWire) WireIndex() else null
+        val graph = OptraIxGraph(expectedComponents)
+        var wires = if (eliminateWire) WireIndex() else null
         scan(world, graph, wires, cancelled)
         checkCancelled(cancelled)
         stageListener?.invoke("scan", graph)
@@ -75,20 +77,23 @@ object OptraIxCompiler {
             val sink = GraphSink(graph)
             for (node in graph.nodes) buildEdges(world, sink, node, node.id)
         } else {
-            resolveThroughWires(world, graph, wires, regionChunks, cancelled)
+            resolveThroughWires(world, graph, wires, regionChunks, boundedMemory, cancelled)
         }
+        wires = null
         checkCancelled(cancelled)
         stageListener?.invoke("buildEdges", graph)
+        graph.releasePositionIndex()
         var resolved = graph
-        if (fuseChains) resolved = ChainFuser.fuse(resolved)
+        if (fuseChains && !boundedMemory) resolved = ChainFuser.fuse(resolved)
         checkCancelled(cancelled)
         stageListener?.invoke("fuse", resolved)
+        if (resolved !== graph) resolved.releasePositionIndex()
         val circuit = flatten(resolved)
         checkCancelled(cancelled)
         stageListener?.invoke("flatten", null)
         for (entry in world.snapshotTicks()) {
             val slot = circuit.linkIndex[entry.pos.asLong()]
-            if (slot != null) {
+            if (slot >= 0) {
                 circuit.importPendingLinkTick(slot, entry.ticksLeft, entry.priority.ordinal)
                 continue
             }
@@ -506,6 +511,7 @@ object OptraIxCompiler {
         graph: OptraIxGraph,
         wires: WireIndex,
         regionChunks: Int,
+        boundedMemory: Boolean,
         cancelled: () -> Boolean,
     ) {
         if (regionChunks < 1 || Integer.bitCount(regionChunks) != 1) {
@@ -522,10 +528,11 @@ object OptraIxCompiler {
         }
 
         val localOf = IntArray(graph.nodes.size) { -1 }
-        val wirePos = LongBuffer()
-        val componentGlobal = IntBuffer()
-        val pairSource = IntBuffer()
-        val pairTarget = IntBuffer()
+        val spillEntries = if (boundedMemory) BoundedBufferEntries else DefaultBufferEntries
+        val wirePos = LongBuffer(spillEntries = spillEntries)
+        val componentGlobal = IntBuffer(spillEntries = spillEntries)
+        val pairSource = IntBuffer(spillEntries = spillEntries)
+        val pairTarget = IntBuffer(spillEntries = spillEntries)
         val deque = IntDeque()
 
         try {
@@ -692,15 +699,36 @@ object OptraIxCompiler {
 
     private const val MaxSignal = 15
 
+    private const val BoundedBufferEntries = 262_144
+
+    private const val DefaultBufferEntries = 1_048_576
+
     private const val Halo = 20
 
-    private fun fanOutOrder(graph: OptraIxGraph, source: GraphNode): java.util.Comparator<GraphEdge> =
-        compareBy<GraphEdge> { faceRank(source.pos, graph.nodes[it.target].pos) }
-            .thenBy { graph.nodes[it.target].pos.asLong() }
+    private fun sortedOutputs(graph: OptraIxGraph, source: GraphNode): IntArray {
+        val order = IntArray(source.outputSize) { it }
+        for (index in 1 until order.size) {
+            val value = order[index]
+            val targetNode = graph.nodes[source.outputNode(value)]
+            val target = targetNode.pos
+            val face = faceRank(source.pos, target)
+            val key = targetNode.posKey
+            var cursor = index
+            while (cursor > 0) {
+                val previous = order[cursor - 1]
+                val previousTarget = graph.nodes[source.outputNode(previous)].pos
+                val previousFace = faceRank(source.pos, previousTarget)
+                if (previousFace < face || previousFace == face && graph.nodes[source.outputNode(previous)].posKey <= key) break
+                order[cursor] = previous
+                cursor--
+            }
+            order[cursor] = value
+        }
+        return order
+    }
 
     private fun localityOrder(graph: OptraIxGraph): IntArray {
         val count = graph.nodes.size
-        val order = IntArray(count)
         val rank = IntArray(count) { -1 }
         val queue = IntArray(count)
         var next = 0
@@ -710,21 +738,23 @@ object OptraIxCompiler {
             var head = 0
             var tail = 0
             rank[seed] = next
-            order[next++] = seed
+            next++
             queue[tail++] = seed
             while (head < tail) {
                 val node = graph.nodes[queue[head++]]
-                for (edge in node.outputs) {
-                    if (rank[edge.target] >= 0) continue
-                    rank[edge.target] = next
-                    order[next++] = edge.target
-                    queue[tail++] = edge.target
+                for (edge in 0 until node.outputSize) {
+                    val target = node.outputNode(edge)
+                    if (rank[target] >= 0) continue
+                    rank[target] = next
+                    next++
+                    queue[tail++] = target
                 }
-                for (edge in node.inputs) {
-                    if (rank[edge.source] >= 0) continue
-                    rank[edge.source] = next
-                    order[next++] = edge.source
-                    queue[tail++] = edge.source
+                for (edge in 0 until node.inputSize) {
+                    val source = node.inputNode(edge)
+                    if (rank[source] >= 0) continue
+                    rank[source] = next
+                    next++
+                    queue[tail++] = source
                 }
             }
         }
@@ -756,12 +786,12 @@ object OptraIxCompiler {
         val adjacentOverride = ByteArray(count)
         val farOverride = ByteArray(count)
         val state = LongArray(count)
-        val index = HashMap<Long, Int>(count * 2)
+        val nodeTypeCounts = IntArray(NodeType.Count)
 
         val rank = localityOrder(graph)
 
         val edgeStart = IntArray(count + 1)
-        for (node in graph.nodes) edgeStart[rank[node.id]] = node.outputs.size
+        for (node in graph.nodes) edgeStart[rank[node.id]] = node.outputSize
         var total = 0
         for (slot in 0 until count) {
             val size = edgeStart[slot]
@@ -771,11 +801,13 @@ object OptraIxCompiler {
         edgeStart[count] = total
 
         val edges = IntArray(total)
-        val defaultInputs = IntArray(count)
-        val sideInputs = IntArray(count)
+        val defaultInputs = ByteArray(count)
+        val sideInputs = ByteArray(count)
         for (node in graph.nodes) {
-            for (edge in node.inputs) {
-                if (edge.side) sideInputs[rank[node.id]]++ else defaultInputs[rank[node.id]]++
+            for (edge in 0 until node.inputSize) {
+                val inputs = if (node.inputSide(edge)) sideInputs else defaultInputs
+                val id = rank[node.id]
+                if (inputs[id] < 2) inputs[id]++
             }
         }
 
@@ -805,7 +837,6 @@ object OptraIxCompiler {
         val linkPos = LongArray(linkTotal)
         val linkFacing = ByteArray(linkTotal)
         val linkOn = ByteArray(linkTotal)
-        val linkIndex = HashMap<Long, Int>(linkTotal * 2)
         var chainCursor = 0
         var linkCursor = 0
         for (node in graph.nodes) {
@@ -830,10 +861,9 @@ object OptraIxCompiler {
                 }
                 if (link.frontDiode) kind = kind or OptraIxCircuit.FrontDiodeLink
                 linkKind[slot] = kind.toByte()
-                linkPos[slot] = link.pos.asLong()
+                linkPos[slot] = link.posKey
                 linkFacing[slot] = link.facing.toByte()
                 linkOn[slot] = link.onStrength.toByte()
-                linkIndex[link.pos.asLong()] = slot
                 if (link.on) powered = powered or (1L shl offset)
             }
             chainPowered[chain] = powered
@@ -842,14 +872,13 @@ object OptraIxCompiler {
 
         for (node in graph.nodes) {
             val id = rank[node.id]
-            posKey[id] = node.pos.asLong()
+            posKey[id] = node.posKey
             baseState[id] = node.state
             delayData[id] = node.delay.toByte()
             modeData[id] = node.mode.toByte()
             facingData[id] = node.facing.toByte()
             adjacentOverride[id] = node.adjacentOverride.toByte()
             farOverride[id] = node.farOverride.toByte()
-            index[node.pos.asLong()] = id
             state[id] = OptraIxCircuit.pack(
                 type = node.type,
                 output = node.output,
@@ -860,18 +889,21 @@ object OptraIxCompiler {
                 compare = node.type == NodeType.Comparator &&
                     node.mode == ComparatorMode.Compare.ordinal,
             )
+            nodeTypeCounts[node.type]++
 
             var cursor = edgeStart[id]
-            for (edge in node.outputs.sortedWith(fanOutOrder(graph, node))) {
-                val target = rank[edge.target]
-                val solo = if (edge.side) sideInputs[target] == 1 else defaultInputs[target] == 1
-                edges[cursor] = OptraIxCircuit.packEdge(target, edge.weight, edge.side, solo)
+            for (edge in sortedOutputs(graph, node)) {
+                val target = rank[node.outputNode(edge)]
+                val side = node.outputSide(edge)
+                val solo = if (side) sideInputs[target].toInt() == 1 else defaultInputs[target].toInt() == 1
+                edges[cursor] = OptraIxCircuit.packEdge(target, node.outputWeight(edge), side, solo)
                 cursor++
             }
         }
 
         return OptraIxCircuit(
             count = count,
+            nodeTypeCounts = nodeTypeCounts,
             posKey = posKey,
             baseState = baseState,
             delayData = delayData,
@@ -881,7 +913,7 @@ object OptraIxCompiler {
             farOverride = farOverride,
             edgeStart = edgeStart,
             edges = edges,
-            index = index,
+            index = LongIntLookup.from(posKey),
             state = state,
             histBase = histBase,
             counts = counts,
@@ -895,7 +927,7 @@ object OptraIxCompiler {
             linkPos = linkPos,
             linkFacing = linkFacing,
             linkOn = linkOn,
-            linkIndex = linkIndex,
+            linkIndex = LongIntLookup.from(linkPos),
         )
     }
 }

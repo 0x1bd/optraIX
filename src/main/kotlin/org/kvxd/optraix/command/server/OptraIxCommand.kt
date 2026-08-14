@@ -57,25 +57,24 @@ class OptraIxCommand : ServerCommand {
 
     private fun pause(source: CommandSource) {
         val server = source.server
-        server.submit {
-            val runtime = server.runtimeFor(source.player)
-            val engine = server.engineFor(source.player)
-            if (engine !is OptraIxEngine) {
-                source.reply("optraix is not the active engine")
-                return@submit
-            }
-            if (engine.paused) {
-                source.reply("optraix is already paused")
-                return@submit
-            }
-            runtime.desiredMode = RedstoneMode.Interpreted
-            runtime.compileTicket++
-            runtime.compiling = false
-            runtime.redstoneFrozen = false
-            engine.pause(source.world)
-            runtime.redstoneStage = RedstoneStage.Interpreted
-            runtime.redstoneProgress = "interpreted"
-            source.success("optraix paused, running interpreted until /optraix resume")
+        val engine = server.engineFor(source.player)
+        if (engine !is OptraIxEngine) {
+            source.reply("optraix is not the active engine")
+            return
+        }
+        if (engine.paused) {
+            source.reply("optraix is already paused")
+            return
+        }
+        val runtime = server.runtimeFor(source.player)
+        if (runtime.redstoneFrozen && runtime.desiredMode == RedstoneMode.Interpreted) {
+            source.reply("optraix is already transitioning to interpreted mode")
+            return
+        }
+        source.reply("pausing; materializing interpreted redstone in the background...")
+        server.requestPause(source.player, engine) { ok ->
+            if (ok) source.success("optraix paused, running interpreted until /optraix resume")
+            else source.error("pause failed: ${engine.lastError}")
         }
     }
 
@@ -115,14 +114,14 @@ class OptraIxCommand : ServerCommand {
             engine.lastError?.let { source.reply("  error:    $it") }
             return
         }
-        val histogram = IntArray(NodeType.Count)
-        for (node in 0 until circuit.count) histogram[circuit.typeOf(node)]++
         source.reply("  state:    compiled in ${engine.compileMillis}ms")
         source.reply("  nodes:    ${circuit.count}")
         source.reply("  edges:    ${circuit.edgeCount}")
         source.reply("  pending:  ${circuit.pendingTicks}")
         for (type in 0 until NodeType.Count) {
-            if (histogram[type] > 0) source.reply("    ${NodeType.names[type]}: ${histogram[type]}")
+            if (circuit.nodeTypeCounts[type] > 0) {
+                source.reply("    ${NodeType.names[type]}: ${circuit.nodeTypeCounts[type]}")
+            }
         }
     }
 }

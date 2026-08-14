@@ -230,6 +230,20 @@ class OptraIxEngineTest {
         assertTrue(engine.compiled)
     }
 
+    @Test
+    fun transitionPauseCanBeCancelledAfterDetaching() {
+        val (world) = lampWorld()
+        val engine = OptraIxEngine()
+        assertTrue(engine.compile(world))
+        var checks = 0
+
+        val completed = engine.pauseForTransition(world) { ++checks >= 2 }
+
+        assertFalse(completed)
+        assertFalse(engine.compiled)
+        assertFalse(engine.paused)
+    }
+
     private fun chainWorld(): Triple<GameWorld, BlockPos, BlockPos> {
         val world = GameWorld(WorldGenerator(Blocks.Air.defaultState, 0))
         for (x in 0..6) world.setBlockSilent(BlockPos(x, 0, 0), stone)

@@ -25,6 +25,7 @@ class ChunkSection {
     val isDirect: Boolean
         get() = bitsPerEntry >= DirectBits
 
+    @Synchronized
     fun get(index: Int): Int {
         if (bitsPerEntry == 0) return palette[0]
         val valuesPerLong = 64 / bitsPerEntry
@@ -35,7 +36,8 @@ class ChunkSection {
         return if (isDirect) raw else palette[raw]
     }
 
-    inline fun forEachState(action: (slot: Int, state: Int) -> Unit) {
+    @Synchronized
+    fun forEachState(action: (slot: Int, state: Int) -> Unit) {
         if (bitsPerEntry == 0) {
             val state = palette[0]
             for (slot in 0 until 4096) action(slot, state)

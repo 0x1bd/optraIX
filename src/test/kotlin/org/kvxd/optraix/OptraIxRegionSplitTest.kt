@@ -8,6 +8,7 @@ import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.redstone.mchprs.Wire
 import org.kvxd.optraix.redstone.optraix.OptraIxCircuit
 import org.kvxd.optraix.redstone.optraix.compiler.OptraIxCompiler
+import org.kvxd.optraix.redstone.optraix.compiler.CompileWorldSnapshot
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
 import org.kvxd.optraix.world.WorldGenerator
@@ -104,5 +105,29 @@ class OptraIxRegionSplitTest {
                 "unfused compile with regionChunks=$regionChunks changed the circuit",
             )
         }
+    }
+
+    @Test
+    fun boundedMemoryCompilationPreservesTheCircuit() {
+        val circuit = BenchCircuit.busses(6, 16)
+        val reference = describe(
+            OptraIxCompiler.compile(circuit.world, regionChunks = 1024, fuseChains = false),
+        )
+        val bounded = describe(
+            OptraIxCompiler.compile(circuit.world, regionChunks = 1, boundedMemory = true),
+        )
+
+        assertEquals(reference, bounded)
+    }
+
+    @Test
+    fun sparseCompileSnapshotPreservesTheCircuit() {
+        val circuit = BenchCircuit.busses(6, 16)
+        circuit.world.setBlockSilent(BlockPos(10_000, 20, 10_000), Blocks.Stone.defaultState)
+        val reference = describe(OptraIxCompiler.compile(circuit.world, fuseChains = false))
+        val snapshot = CompileWorldSnapshot.create(circuit.world)
+
+        assertEquals(reference, describe(OptraIxCompiler.compile(snapshot, fuseChains = false)))
+        assertTrue(snapshot.loadedChunks < circuit.world.loadedChunks)
     }
 }

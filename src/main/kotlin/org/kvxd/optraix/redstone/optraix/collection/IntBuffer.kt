@@ -3,7 +3,7 @@ package org.kvxd.optraix.redstone.optraix.collection
 import java.io.Closeable
 import java.io.RandomAccessFile
 
-internal class IntBuffer(capacity: Int = 16) : Closeable {
+internal class IntBuffer(capacity: Int = 16, private val spillEntries: Int = DefaultSpillEntries) : Closeable {
     private var data = IntArray(capacity)
     private var spill: RandomAccessFile? = null
     private var spillFile: java.io.File? = null
@@ -19,7 +19,7 @@ internal class IntBuffer(capacity: Int = 16) : Closeable {
             size++
             return
         }
-        if (size == SpillEntries) spill()
+        if (size == spillEntries) spill()
         if (spill != null) {
             add(value)
             return
@@ -56,6 +56,6 @@ internal class IntBuffer(capacity: Int = 16) : Closeable {
     }
 
     private companion object {
-        const val SpillEntries = 1_048_576
+        const val DefaultSpillEntries = 1_048_576
     }
 }

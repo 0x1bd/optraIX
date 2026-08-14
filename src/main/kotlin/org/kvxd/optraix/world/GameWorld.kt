@@ -1,5 +1,6 @@
 package org.kvxd.optraix.world
 
+import org.kvxd.optraix.collection.ConcurrentLongChangeSet
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import java.util.concurrent.ConcurrentHashMap
 
@@ -11,8 +12,8 @@ class GameWorld(
     private val tickQueue = ArrayList<TickEntry>()
     private val pendingPositions = HashMap<Long, Int>()
 
-    val changedBlocks = HashSet<Long>()
-    val changedBlockEntities = HashSet<Long>()
+    val changedBlocks = ConcurrentLongChangeSet()
+    val changedBlockEntities = ConcurrentLongChangeSet()
 
     var soundListener: ((BlockPos, Int, Int, Float, Float) -> Unit)? = null
 

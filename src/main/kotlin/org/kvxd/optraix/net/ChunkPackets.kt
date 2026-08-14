@@ -83,9 +83,10 @@ object ChunkPackets {
         chunk.wireData ?: encodeSections(chunk).also { chunk.wireData = it }
 
     private fun encodeSections(chunk: Chunk): ByteArray {
+        val sections = Array<ChunkSection?>(SECTION_COUNT) { index -> chunk.sections[index]?.snapshotCopy() }
         var capacity = 0
         for (index in 0 until SECTION_COUNT) {
-            val section = chunk.sections[index]
+            val section = sections[index]
             capacity += if (isAir(section)) {
                 airSectionBytes.size
             } else {
@@ -96,7 +97,7 @@ object ChunkPackets {
         val writer = PacketWriter(capacity)
         var run = 0
         for (index in 0 until SECTION_COUNT) {
-            val section = chunk.sections[index]
+            val section = sections[index]
             if (isAir(section)) {
                 run++
                 continue

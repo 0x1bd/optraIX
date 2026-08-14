@@ -42,7 +42,13 @@ internal object CompileMemoryPreflight {
                 saturatedMultiply(wires, BytesPerWire),
             ),
         )
-        return CompileMemoryPlan(required, heapAvailableBytes.coerceAtLeast(0), systemAvailableBytes)
+        return CompileMemoryPlan(
+            components,
+            wires,
+            required,
+            heapAvailableBytes.coerceAtLeast(0),
+            systemAvailableBytes,
+        )
     }
 
     private fun saturatedMultiply(left: Long, right: Long): Long =
@@ -67,7 +73,7 @@ internal object CompileMemoryPreflight {
         return operatingSystem?.freeMemorySize ?: -1
     }
 
-    private const val BaseBytes = 128L * 1024L * 1024L
-    private const val BytesPerComponent = 640L
-    private const val BytesPerWire = 48L
+    private const val BaseBytes = 32L * 1024L * 1024L
+    private const val BytesPerComponent = 100L
+    private const val BytesPerWire = 6L
 }

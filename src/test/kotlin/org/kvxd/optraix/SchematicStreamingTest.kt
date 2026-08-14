@@ -72,10 +72,10 @@ class SchematicStreamingTest {
         val changed = WorldEdit(server).paste(player, clipboard, includeAir = false)
 
         assertEquals(14_646_595, changed)
-        assertTrue(player.undoStack.isEmpty())
+        assertTrue(player.undoStack.isNotEmpty())
         assertTrue(!engine.compiled)
         assertTrue(
-            CompileMemoryPreflight.evaluate(server.world).requiredBytes < 2L * 1024 * 1024 * 1024,
+            CompileMemoryPreflight.evaluate(server.world).requiredBytes < 512L * 1024 * 1024,
             "compiling the sm83 core should not need gigabytes of scratch memory",
         )
     }

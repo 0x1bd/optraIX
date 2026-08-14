@@ -9,6 +9,7 @@ class Chunk(val x: Int, val z: Int) {
     val sections = arrayOfNulls<ChunkSection>(SECTION_COUNT)
     val blockEntities = ConcurrentHashMap<Int, BlockEntity>()
 
+    @Volatile
     var wireData: ByteArray? = null
 
     fun invalidateWire() {

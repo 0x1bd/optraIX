@@ -11,7 +11,7 @@ object ChainFuser {
         val count = graph.nodes.size
         val linkType = BooleanArray(count) { id ->
             val node = graph.nodes[id]
-            val shape = node.inputs.size == 1 && !node.inputs[0].side
+            val shape = node.inputSize == 1 && !node.inputSide(0)
             when {
                 !shape -> false
                 node.type == NodeType.Repeater -> !node.locked && node.delay in 1..7
@@ -22,7 +22,7 @@ object ChainFuser {
             }
         }
         val strictLink = BooleanArray(count) { id ->
-            linkType[id] && graph.nodes[id].outputs.size == 1
+            linkType[id] && graph.nodes[id].outputSize == 1
         }
         val headType = BooleanArray(count) { id ->
             val type = graph.nodes[id].type
@@ -39,12 +39,12 @@ object ChainFuser {
             while (true) {
                 links += current
                 if (links.size >= MaxRun) break
-                val edge = current.outputs.firstOrNull() ?: break
-                val next = graph.nodes[edge.target]
+                if (current.outputSize == 0) break
+                val next = graph.nodes[current.outputNode(0)]
                 if (!linkType[next.id] || claimed[next.id] || next.id == node.id ||
-                    next.inputs[0].source != current.id
+                    next.inputNode(0) != current.id
                 ) break
-                if (next.outputs.size != 1) {
+                if (next.outputSize != 1) {
                     links += next
                     break
                 }
@@ -57,7 +57,7 @@ object ChainFuser {
                 strength = if (index == 0) {
                     15
                 } else {
-                    val incoming = strength - link.inputs[0].weight
+                    val incoming = strength - link.inputWeight(0)
                     if (incoming <= 0) {
                         cut = index
                         break
@@ -82,7 +82,7 @@ object ChainFuser {
             progress = false
             for (node in graph.nodes) {
                 if (!strictLink[node.id] || claimed[node.id] || !headType[node.id]) continue
-                val previous = node.inputs[0].source
+                val previous = node.inputNode(0)
                 if (strictLink[previous] && !claimed[previous] && headUpstream(graph, strictLink, headType, claimed, node.id)) continue
                 if (tryStart(node)) progress = true
             }
@@ -121,11 +121,11 @@ object ChainFuser {
             val source = remap[node.id]
             if (source < 0) continue
             if (chain >= 0 && chains[chain].last().id != node.id) continue
-            val outputs = if (chain >= 0) chains[chain].last().outputs else node.outputs
-            for (edge in outputs) {
-                val target = remap[edge.target]
+            val outputNode = if (chain >= 0) chains[chain].last() else node
+            for (index in 0 until outputNode.outputSize) {
+                val target = remap[outputNode.outputNode(index)]
                 if (target < 0) continue
-                fused.link(source, target, edge.weight, edge.side)
+                fused.link(source, target, outputNode.outputWeight(index), outputNode.outputSide(index))
             }
         }
 
@@ -142,7 +142,7 @@ object ChainFuser {
         var current = start
         var steps = 0
         while (steps++ < MaxRun) {
-            val previous = graph.nodes[current].inputs[0].source
+            val previous = graph.nodes[current].inputNode(0)
             if (!strictLink[previous] || claimed[previous]) return false
             if (headType[previous]) return true
             current = previous
