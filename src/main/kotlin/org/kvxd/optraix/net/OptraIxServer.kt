@@ -1693,8 +1693,7 @@ class OptraIxServer(val config: ServerConfig) {
         }
         when (packet.status) {
             0 -> {
-                val held = player.heldItem
-                if (held != null && held.item.name == "minecraft:wooden_axe") {
+                if (isHoldingSelectionWand(player)) {
                     commands.worldEdit.setPositionOne(player, pos)
                     player.connection.send(
                         ClientboundBlockChangePacket(Position(pos.x, pos.z, pos.y), world.getBlock(pos))
@@ -1715,7 +1714,7 @@ class OptraIxServer(val config: ServerConfig) {
         queueBlockAck(player, packet.sequence)
         val held = player.heldItem
 
-        if (held != null && held.item.name == "minecraft:wooden_axe") {
+        if (isHoldingSelectionWand(player)) {
             commands.worldEdit.setPositionTwo(player, pos)
             return
         }
@@ -1750,6 +1749,9 @@ class OptraIxServer(val config: ServerConfig) {
             }
         }
     }
+
+    private fun isHoldingSelectionWand(player: Player): Boolean =
+        player.heldItem?.item?.id == GeneratedItems.WoodenAxe.id
 
     private fun playSound(
         runtime: ManagedWorld,

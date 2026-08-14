@@ -15,12 +15,53 @@ import net.lenni0451.mcstructs.nbt.tags.LongTag
 import net.lenni0451.mcstructs.nbt.tags.ShortTag
 import net.lenni0451.mcstructs.nbt.tags.StringTag
 import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.io.EOFException
 import java.io.InputStream
 import java.io.PushbackInputStream
 import java.util.zip.GZIPInputStream
 
 object NbtIo {
+
+    fun writeNamed(output: DataOutputStream, name: String, tag: NbtTag) {
+        output.writeByte(tag.nbtType.id)
+        output.writeUTF(name)
+        writePayload(output, tag)
+    }
+
+    fun writePayload(output: DataOutputStream, tag: NbtTag) {
+        when (tag) {
+            is ByteTag -> output.writeByte(tag.value.toInt())
+            is ShortTag -> output.writeShort(tag.value.toInt())
+            is IntTag -> output.writeInt(tag.value)
+            is LongTag -> output.writeLong(tag.value)
+            is FloatTag -> output.writeFloat(tag.value)
+            is DoubleTag -> output.writeDouble(tag.value)
+            is ByteArrayTag -> {
+                output.writeInt(tag.value.size)
+                output.write(tag.value)
+            }
+            is StringTag -> output.writeUTF(tag.value)
+            is ListTag<*> -> {
+                output.writeByte(tag.type?.id ?: NbtType.END.id)
+                output.writeInt(tag.size())
+                for (element in tag) writePayload(output, element)
+            }
+            is CompoundTag -> {
+                for ((name, value) in tag) writeNamed(output, name, value)
+                output.writeByte(NbtType.END.id)
+            }
+            is IntArrayTag -> {
+                output.writeInt(tag.value.size)
+                for (value in tag.value) output.writeInt(value)
+            }
+            is LongArrayTag -> {
+                output.writeInt(tag.value.size)
+                for (value in tag.value) output.writeLong(value)
+            }
+            else -> throw IllegalArgumentException("unsupported nbt tag type ${tag.nbtType}")
+        }
+    }
 
     fun readCompressedOrPlain(
         input: InputStream,

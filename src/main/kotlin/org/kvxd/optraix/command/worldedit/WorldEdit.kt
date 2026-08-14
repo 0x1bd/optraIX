@@ -6,6 +6,7 @@ import org.kvxd.optraix.command.worldedit.job.ApplyJob
 import org.kvxd.optraix.command.worldedit.job.CopyJob
 import org.kvxd.optraix.command.worldedit.job.CountJob
 import org.kvxd.optraix.command.worldedit.job.EditJob
+import org.kvxd.optraix.command.worldedit.job.ExportJob
 import org.kvxd.optraix.command.worldedit.job.HistoryJob
 import org.kvxd.optraix.command.worldedit.job.MoveJob
 import org.kvxd.optraix.command.worldedit.job.PasteJob
@@ -25,9 +26,12 @@ import org.kvxd.optraix.worldedit.history.UndoAccumulator
 import org.kvxd.optraix.worldedit.history.UndoEntry
 import org.kvxd.optraix.worldedit.history.ChangeJournal
 import org.kvxd.optraix.worldedit.history.positionArray
+import org.kvxd.optraix.worldedit.schematic.Schematic
 import org.kvxd.optraix.world.management.ManagedWorld
 import java.io.File
 import java.util.ArrayDeque
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
 class WorldEdit(internal val server: OptraIxServer) {
@@ -35,6 +39,9 @@ class WorldEdit(internal val server: OptraIxServer) {
     private val activeJobs = LinkedHashMap<ManagedWorld, EditJob>()
     private val waitingJobs = HashMap<ManagedWorld, ArrayDeque<EditJob>>()
     private var nextJobId = 1L
+    private val exportExecutor = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "optraix-schematic-export").apply { isDaemon = true }
+    }
 
     init {
         File(server.config.runDirectory, "tmp/worldedit").listFiles()
@@ -85,6 +92,9 @@ class WorldEdit(internal val server: OptraIxServer) {
         while (activeJobs.isNotEmpty()) {
             for (job in activeJobs.values.toList()) advance(job, Long.MAX_VALUE)
         }
+        exportExecutor.shutdown()
+        exportExecutor.awaitTermination(ExportShutdownMillis, TimeUnit.MILLISECONDS)
+        exportExecutor.shutdownNow()
     }
 
     fun submitPaste(
@@ -158,6 +168,33 @@ class WorldEdit(internal val server: OptraIxServer) {
         progress: (String) -> Unit,
         completion: (EditOutcome) -> Unit,
     ): EditSubmission = submit(CopyJob(this, nextJobId++, player, region, cut, progress, completion))
+
+    fun submitExport(
+        player: Player,
+        region: Region,
+        file: File,
+        progress: (String) -> Unit,
+        completion: (EditOutcome) -> Unit,
+        written: (Result<File>) -> Unit,
+    ): EditSubmission = submit(
+        ExportJob(
+            this,
+            nextJobId++,
+            player,
+            region,
+            snapshot = { clipboard ->
+                exportExecutor.execute {
+                    val result = runCatching {
+                        Schematic.save(file, clipboard)
+                        file
+                    }
+                    server.submit { written(result) }
+                }
+            },
+            progress = progress,
+            completion = completion,
+        )
+    )
 
     fun submitCount(
         player: Player,
@@ -564,6 +601,7 @@ class WorldEdit(internal val server: OptraIxServer) {
         const val MaxRefreshedBlocks = 250_000
         const val InitialEditNanos = 2_000_000L
         const val MaxEditNanos = 8_000_000L
+        const val ExportShutdownMillis = 5_000L
 
         fun chunkKey(x: Int, z: Int): Long = (x.toLong() shl 32) or (z.toLong() and 0xFFFFFFFFL)
     }

@@ -78,7 +78,7 @@ class HelpTest {
         assertTrue(has("/speed [<multiplier>]"), "speed argument missing:\n$dump")
         assertTrue(has("/tp <x> <y> <z>"), "missing /tp <x> <y> <z>:\n$dump")
         assertTrue(has("//stack <count> [<direction>]"), "stack direction missing:\n$dump")
-        assertTrue(has("//schem (list | load <name>)"), "schem branches missing:\n$dump")
+        assertTrue(has("//schem (list | load <name> | export <name>)"), "schem branches missing:\n$dump")
     }
 
     @Test

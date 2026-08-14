@@ -2,10 +2,14 @@ package org.kvxd.optraix.worldedit.schematic
 
 import java.io.DataInputStream
 import java.io.File
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import net.lenni0451.mcstructs.nbt.tags.ByteArrayTag
 import net.lenni0451.mcstructs.nbt.tags.CompoundTag
 import net.lenni0451.mcstructs.nbt.tags.IntArrayTag
 import net.lenni0451.mcstructs.nbt.tags.ListTag
+import net.lenni0451.mcstructs.nbt.tags.ShortTag
 import org.kvxd.optraix.nbt.NbtIo
 import org.kvxd.optraix.nbt.asIntOrNull
 import org.kvxd.optraix.nbt.asStringOrNull
@@ -21,6 +25,36 @@ import org.kvxd.optraix.worldedit.clipboard.Clipboard
 import org.kvxd.optraix.worldedit.clipboard.SparseClipboardBuilder
 
 object Schematic {
+
+    const val EXPORT_FORMAT_VERSION = 3
+
+    fun save(file: File, clipboard: Clipboard) {
+        val target = file.absoluteFile
+        val directory = target.parentFile
+        if (!directory.isDirectory && !directory.mkdirs()) {
+            throw SchematicException("could not create schematic directory ${directory.path}")
+        }
+        val temporary = File.createTempFile(".optraix-schematic-", ".tmp", directory)
+        try {
+            SchematicWriter.write(temporary, clipboard)
+            try {
+                Files.move(
+                    temporary.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    temporary.toPath(),
+                    target.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                )
+            }
+        } finally {
+            temporary.delete()
+        }
+    }
 
     fun load(file: File): Clipboard {
         if (!file.isFile) throw SchematicException("no such schematic: ${file.name}")
@@ -69,11 +103,17 @@ object Schematic {
     }
 
     private fun dimensions(schematic: CompoundTag): Triple<Int, Int, Int> {
-        val width = schematic.int("Width") ?: throw SchematicException("schematic has no Width")
-        val height = schematic.int("Height") ?: throw SchematicException("schematic has no Height")
-        val length = schematic.int("Length") ?: throw SchematicException("schematic has no Length")
+        val width = dimension(schematic, "Width")
+        val height = dimension(schematic, "Height")
+        val length = dimension(schematic, "Length")
         if (width <= 0 || height <= 0 || length <= 0) throw SchematicException("schematic dimensions must be positive")
         return Triple(width, height, length)
+    }
+
+    private fun dimension(schematic: CompoundTag, name: String): Int {
+        val tag = schematic.tag(name) ?: throw SchematicException("schematic has no $name")
+        return if (tag is ShortTag) tag.value.toInt() and 0xFFFF
+        else tag.asIntOrNull() ?: throw SchematicException("schematic $name is not an integer")
     }
 
     private fun checkedVolume(width: Int, height: Int, length: Int): Int = try {
@@ -83,6 +123,15 @@ object Schematic {
     }
 
     private fun offsetOf(schematic: CompoundTag): BlockPos {
+        val offset = schematic.tag("Offset")
+        val coordinates = when (offset) {
+            is IntArrayTag -> offset.value
+            is ListTag<*> -> offset.mapNotNull { it.asIntOrNull() }.toIntArray()
+            else -> null
+        }
+        if (coordinates != null && coordinates.size >= 3) {
+            return BlockPos(coordinates[0], coordinates[1], coordinates[2])
+        }
         val metadata = schematic.compound("Metadata")
         if (metadata != null) {
             val x = metadata.int("WEOffsetX")

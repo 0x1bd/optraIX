@@ -99,12 +99,12 @@ object BlockEntityNbt {
         is BlockEntity.Container -> compoundOf(
             "id" to StringTag(entity.kind.id),
             "Items" to listOfTags(
-                entity.inventory.map {
+                entity.inventory.map { entry ->
                     compoundOf(
-                        "Count" to ByteTag(it.count.toByte()),
-                        "id" to StringTag(itemName(it.id)),
-                        "Slot" to ByteTag(it.slot.toByte()),
-                    )
+                        "Count" to ByteTag(entry.count.toByte()),
+                        "id" to StringTag(itemName(entry.id)),
+                        "Slot" to ByteTag(entry.slot.toByte()),
+                    ).also { item -> entry.nbt?.let { item.add("tag", it.copy()) } }
                 }
             ),
         )

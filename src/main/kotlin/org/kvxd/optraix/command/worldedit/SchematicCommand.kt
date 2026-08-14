@@ -14,7 +14,7 @@ class SchematicCommand(private val worldEdit: WorldEdit) : ServerCommand {
 
     override val aliases = listOf("/schematic")
 
-    override val description = "list or load files from the schematics folder"
+    override val description = "list, load, or export schematic files"
 
     override fun register(dispatcher: CommandDispatcher<CommandSource>) {
         for (alias in listOf(name) + aliases) {
@@ -27,6 +27,18 @@ class SchematicCommand(private val worldEdit: WorldEdit) : ServerCommand {
                                 .suggests(SchematicSuggestions::suggest)
                                 .runs { context ->
                                     Schematics.load(
+                                        context.source,
+                                        StringArgumentType.getString(context, "name"),
+                                    )
+                                }
+                        )
+                    )
+                    .then(
+                        literal("export").then(
+                            argument("name", StringArgumentType.greedyString())
+                                .runs { context ->
+                                    Schematics.export(
+                                        worldEdit,
                                         context.source,
                                         StringArgumentType.getString(context, "name"),
                                     )

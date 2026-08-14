@@ -49,7 +49,9 @@ On Windows, run the equivalent command from PowerShell or Command Prompt:
 gradlew.bat nativeCompile
 ```
 
-Windows native builds require Visual Studio Build Tools with MSVC and a Windows SDK installed. The executable is written to `build/native/nativeCompile/optraix` (`optraix.exe` on Windows) and accepts the same command line options as the JVM build.
+Windows native builds require Visual Studio Build Tools with MSVC and a Windows SDK installed. The executable is written
+to `build/native/nativeCompile/optraix` (`optraix.exe` on Windows) and accepts the same command line options as the JVM
+build.
 
 ## Redstone
 
@@ -62,17 +64,26 @@ optraIX is fully MCHPRS-conformant. It does NOT simulate vanilla quirks such as:
 
 optraIX builds a datapath graph of the circuit and acts directly on that graph instead of raw blocks.
 
-During compilation, chunk sections without redstone components are skipped. The remaining components become nodes connected by weighted edges, where the weight represents signal loss and side inputs are tracked separately. Dust is traced in 32×32-chunk regions and replaced with direct component-to-component edges, so wires are completely removed from the compiled circuit.
+During compilation, chunk sections without redstone components are skipped. The remaining components become nodes
+connected by weighted edges, where the weight represents signal loss and side inputs are tracked separately. Dust is
+traced in 32×32-chunk regions and replaced with direct component-to-component edges, so wires are completely removed
+from the compiled circuit.
 
-Linear runs of repeaters, comparators, and torches are fused into compact chain nodes. The final graph is locality-ordered and flattened into primitive arrays with packed node and edge state. At runtime, an event-driven queue only visits consumers whose inputs changed, while a priority scheduler handles delayed redstone ticks. Only changed I/O nodes are written back to the world.
+Linear runs of repeaters, comparators, and torches are fused into compact chain nodes. The final graph is
+locality-ordered and flattened into primitive arrays with packed node and edge state. At runtime, an event-driven queue
+only visits consumers whose inputs changed, while a priority scheduler handles delayed redstone ticks. Only changed I/O
+nodes are written back to the world.
 
-When no compiled circuit is active, optraIX falls back to the MCHPRS engine. Pending ticks are transferred between the world and the compiled circuit when switching engines.
+When no compiled circuit is active, optraIX falls back to the MCHPRS engine. Pending ticks are transferred between the
+world and the compiled circuit when switching engines.
 
-Use `/optraix compile` to compile the world. `/optraix status`, `/optraix pause`, and `/optraix resume` control the engine. `/stats` and `/tps` show runtime information.
+Use `/optraix compile` to compile the world. `/optraix status`, `/optraix pause`, and `/optraix resume` control the
+engine. `/stats` and `/tps` show runtime information.
 
 ## WorldEdit
 
-Use `/help` in-game for command usage. Put `.schem` or `.schematic` files in `run/schematics/` to load them.
+Use `/help` in-game for command usage. Put `.schem` or `.schematic` files in `run/schematics/` to load them,
+or select a region and run `//schem export <name>` to write a Sponge v3 `.schem` file there.
 `//cancel` cancels progressive WorldEdit jobs.
 
 ### Selection
