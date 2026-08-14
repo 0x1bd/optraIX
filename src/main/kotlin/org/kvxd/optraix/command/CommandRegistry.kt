@@ -20,6 +20,7 @@ import org.kvxd.optraix.command.worldedit.CountCommand
 import org.kvxd.optraix.command.worldedit.CutCommand
 import org.kvxd.optraix.command.worldedit.ExpandCommand
 import org.kvxd.optraix.command.worldedit.FlipCommand
+import org.kvxd.optraix.command.worldedit.GrepCommand
 import org.kvxd.optraix.command.worldedit.LoadCommand
 import org.kvxd.optraix.command.worldedit.MoveCommand
 import org.kvxd.optraix.command.worldedit.PasteCommand
@@ -81,6 +82,7 @@ class CommandRegistry(private val server: OptraIxServer) {
         ShiftCommand(worldEdit),
         RotateCommand(worldEdit),
         FlipCommand(worldEdit),
+        GrepCommand(),
         UndoCommand(worldEdit),
         RedoCommand(worldEdit),
         LoadCommand(worldEdit),

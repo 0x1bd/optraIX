@@ -20,6 +20,22 @@ object Text {
         "bold" to ByteTag(1),
     )
 
+    fun clickable(text: String, color: String, command: String, hover: String): CompoundTag = compoundOf(
+        "text" to StringTag(text),
+        "color" to StringTag(color),
+        "clickEvent" to compoundOf(
+            "action" to StringTag("run_command"),
+            "value" to StringTag(command),
+        ),
+        "hoverEvent" to compoundOf(
+            "action" to StringTag("show_text"),
+            "contents" to of(hover),
+        ),
+    )
+
+    fun join(parts: List<CompoundTag>): NbtTag =
+        compoundOf("text" to StringTag(""), "extra" to listOfTags(parts))
+
     fun columns(left: String, right: String, targetWidth: Int): NbtTag {
         val (spaces, boldSpaces) = ChatFont.padding(targetWidth - ChatFont.width(left))
         val parts = ArrayList<CompoundTag>(4)

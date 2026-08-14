@@ -123,3 +123,7 @@ or select a region and run `//schem export <name>` to write a Sponge v3 `.schem`
 
 - `//schem`
 - `//load`
+
+### Search
+
+- `//grep <query>`
