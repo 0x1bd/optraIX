@@ -5,6 +5,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class ServerConfigTest {
@@ -27,19 +28,19 @@ class ServerConfigTest {
             viaversion = true,
         )
 
-        expected.save(file)
+        ServerConfigCodec.write(expected, file)
 
-        assertEquals(expected, ServerConfig.fromProperties(file))
+        assertEquals(expected, ServerConfigCodec.read(file))
     }
 
     @Test
     fun `command line overrides do not modify persisted config`() {
         val directory = Files.createTempDirectory("optraix-config-overrides").toFile()
         val file = File(directory, "optraix.cfg")
-        ServerConfig(port = 25565, viaversion = false).save(file)
+        ServerConfigCodec.write(ServerConfig(port = 25565, viaversion = false), file)
         val persisted = file.readText()
 
-        val loaded = ServerConfig.load(
+        val loaded = ServerConfigLoader.load(
             arrayOf("--port", "25570", "--client-update-rate", "750", "--viaversion"),
             file,
         )
@@ -48,8 +49,8 @@ class ServerConfigTest {
         assertEquals(750, loaded.clientUpdateRate)
         assertTrue(loaded.viaversion)
         assertEquals(persisted, file.readText())
-        assertEquals(25565, ServerConfig.fromProperties(file).port)
-        assertFalse(ServerConfig.fromProperties(file).viaversion)
+        assertEquals(25565, ServerConfigCodec.read(file).port)
+        assertFalse(ServerConfigCodec.read(file).viaversion)
     }
 
     @Test
@@ -58,7 +59,7 @@ class ServerConfigTest {
         val previous = System.getProperty("optraix.executable.dir")
         System.setProperty("optraix.executable.dir", directory.path)
         try {
-            assertEquals(File(directory, "optraix.cfg").absoluteFile, ServerConfig.defaultConfigFile())
+            assertEquals(File(directory, "optraix.cfg").absoluteFile, ServerConfigLoader.defaultFile())
         } finally {
             if (previous == null) {
                 System.clearProperty("optraix.executable.dir")
@@ -73,9 +74,33 @@ class ServerConfigTest {
         val directory = Files.createTempDirectory("optraix-config-default").toFile()
         val file = File(directory, "optraix.cfg")
 
-        val loaded = ServerConfig.load(emptyArray(), file)
+        val loaded = ServerConfigLoader.load(emptyArray(), file)
 
         assertTrue(file.isFile)
-        assertEquals(loaded, ServerConfig.fromProperties(file))
+        assertEquals(loaded, ServerConfigCodec.read(file))
+    }
+
+    @Test
+    fun `schema drives uniform command line syntax`() {
+        val loaded = ServerConfigCodec.applyArguments(
+            ServerConfig(viaversion = true),
+            arrayOf("--port=25570", "--motd=hello", "--no-viaversion"),
+        )
+
+        assertEquals(25570, loaded.port)
+        assertEquals("hello", loaded.motd)
+        assertFalse(loaded.viaversion)
+    }
+
+    @Test
+    fun `schema validation applies to files and arguments`() {
+        val directory = Files.createTempDirectory("optraix-config-invalid").toFile()
+        val file = File(directory, "optraix.cfg")
+        file.writeText("client-update-rate=-1\n")
+
+        assertFailsWith<IllegalArgumentException> { ServerConfigCodec.read(file) }
+        assertFailsWith<IllegalArgumentException> {
+            ServerConfigCodec.applyArguments(ServerConfig(), arrayOf("--port", "not-a-number"))
+        }
     }
 }

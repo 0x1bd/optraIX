@@ -7,9 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import org.kvxd.optraix.block.mcData
 
 fun main(args: Array<String>): Unit = runBlocking {
-    val configFile = ServerConfig.defaultConfigFile()
-    val config = ServerConfig.load(args, configFile)
-    println("config: ${configFile.path}")
+    val config = ServerConfigLoader.load(args)
     config.prepareDirectories()
 
     val started = System.currentTimeMillis()
