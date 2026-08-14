@@ -7,6 +7,8 @@ import org.kvxd.optraix.block.property.WireSide
 import org.kvxd.optraix.interaction.Interaction
 import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.redstone.mchprs.Wire
+import org.kvxd.optraix.redstone.mutation.RecompilePolicy
+import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.OptraIxEngine
 import org.kvxd.optraix.world.BlockPos
 import org.kvxd.optraix.world.GameWorld
@@ -139,6 +141,48 @@ class OptraIxEngineTest {
 
         assertEquals(before + 1, engine.mutationCounter)
         assertFalse(engine.compiled)
+    }
+
+    @Test
+    fun automaticWorldMutationSkipsFullWireMaterialization() {
+        val (world, lever) = lampWorld()
+        val engine = OptraIxEngine()
+        assertTrue(engine.compile(world))
+        assertTrue(engine.onUse(world, lever))
+        repeat(6) { engine.tickWorld(world) }
+
+        val wire = BlockPos(1, 1, 0)
+        assertEquals(0, BlockStates.wirePower[world.getBlock(wire)].toInt())
+
+        engine.mutate(world) {
+            setBlock(BlockPos(10, 1, 0), stone)
+        }
+
+        assertFalse(engine.compiled)
+        assertEquals(
+            0,
+            BlockStates.wirePower[world.getBlock(wire)].toInt(),
+            "an automatically recompiled edit must not scan and materialize every wire",
+        )
+    }
+
+    @Test
+    fun manualWorldMutationMaterializesWireState() {
+        val (world, lever) = lampWorld()
+        val engine = OptraIxEngine()
+        assertTrue(engine.compile(world))
+        assertTrue(engine.onUse(world, lever))
+        repeat(6) { engine.tickWorld(world) }
+
+        val wire = BlockPos(1, 1, 0)
+        assertEquals(0, BlockStates.wirePower[world.getBlock(wire)].toInt())
+
+        engine.mutate(world, WorldMutationOptions(RecompilePolicy.Manual)) {
+            setBlock(BlockPos(10, 1, 0), stone)
+        }
+
+        assertFalse(engine.compiled)
+        assertTrue(BlockStates.wirePower[world.getBlock(wire)].toInt() > 0)
     }
 
     @Test

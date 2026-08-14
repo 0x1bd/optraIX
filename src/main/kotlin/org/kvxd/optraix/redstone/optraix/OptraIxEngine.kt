@@ -6,6 +6,7 @@ import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.block.property.BlockFace
 import org.kvxd.optraix.redstone.RedstoneEngine
 import org.kvxd.optraix.redstone.RedstoneStats
+import org.kvxd.optraix.redstone.mutation.RecompilePolicy
 import org.kvxd.optraix.redstone.mutation.WorldMutationContext
 import org.kvxd.optraix.redstone.mutation.WorldMutationOptions
 import org.kvxd.optraix.redstone.optraix.collection.LongBuffer
@@ -184,7 +185,11 @@ class OptraIxEngine : RedstoneEngine {
         if (circuit != null) {
             val gameWorld = world as? GameWorld
                 ?: error("compiled circuit mutations require a GameWorld")
-            decompile(gameWorld)
+            if (options.recompilePolicy == RecompilePolicy.Automatic) {
+                suspendForTransition(gameWorld)
+            } else {
+                decompile(gameWorld)
+            }
         }
         return WorldMutationContext(world, options)
     }
