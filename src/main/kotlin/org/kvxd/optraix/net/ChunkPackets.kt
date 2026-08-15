@@ -26,9 +26,13 @@ object ChunkPackets {
 
     private val fullSkyLightSection: List<Short> = List(LightBytesPerSection) { 0xFF.toShort() }
 
-    private val fullSkyLight: List<List<Short>> = List(SECTION_COUNT + 2) { fullSkyLightSection }
-
     private val airBiomes = PalettedContainer.ofSingleValue(PaletteKind.Biomes, 0)
+
+    private data class SkyLightData(
+        val mask: List<Long>,
+        val emptyMask: List<Long>,
+        val sections: List<List<Short>>,
+    )
 
     private val airSectionBytes: ByteArray = PacketWriter(16).let { writer ->
         WireChunkSection(
@@ -49,6 +53,23 @@ object ChunkPackets {
         val longs = LongArray((bits + 63) / 64)
         for (i in 0 until bits) longs[i / 64] = longs[i / 64] or (1L shl (i % 64))
         return longs.toList()
+    }
+
+    private fun skyLightData(chunk: Chunk): SkyLightData {
+        val mask = LongArray(fullLightMask.size)
+        val sections = ArrayList<List<Short>>()
+        for (sectionIndex in chunk.sections.indices) {
+            if ((chunk.sections[sectionIndex]?.blockCount ?: 0) == 0) continue
+            val lightSectionIndex = sectionIndex + 1
+            mask[lightSectionIndex / 64] =
+                mask[lightSectionIndex / 64] or (1L shl (lightSectionIndex % 64))
+            sections += fullSkyLightSection
+        }
+        return SkyLightData(
+            mask = mask.toList(),
+            emptyMask = fullLightMask.mapIndexed { index, bits -> bits and mask[index].inv() },
+            sections = sections,
+        )
     }
 
     private fun isAir(section: ChunkSection?): Boolean =
@@ -113,6 +134,7 @@ object ChunkPackets {
     }
 
     fun encode(chunk: Chunk, includeSkyLight: Boolean = false): ClientboundMapChunkPacket {
+        val skyLight = if (includeSkyLight) skyLightData(chunk) else null
         val blockEntities = chunk.blockEntities.entries.map { (key, entity) ->
             ChunkBlockEntity(
                 packed = ChunkBlockEntity.XZ(key and 15, (key shr 4) and 15),
@@ -128,11 +150,11 @@ object ChunkPackets {
             heightmaps = CompoundTag(),
             chunkData = sectionData(chunk),
             blockEntities = blockEntities,
-            skyLightMask = if (includeSkyLight) fullLightMask else emptyList(),
+            skyLightMask = skyLight?.mask ?: emptyList(),
             blockLightMask = emptyList(),
-            emptySkyLightMask = if (includeSkyLight) emptyList() else fullLightMask,
+            emptySkyLightMask = skyLight?.emptyMask ?: fullLightMask,
             emptyBlockLightMask = fullLightMask,
-            skyLight = if (includeSkyLight) fullSkyLight else emptyList(),
+            skyLight = skyLight?.sections ?: emptyList(),
             blockLight = emptyList(),
         )
     }

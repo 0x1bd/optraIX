@@ -251,11 +251,24 @@ class WorldAndEditTest {
     }
 
     @Test
-    fun chunkOnlyIncludesFullSkyLightForProtocolTranslation() {
-        val packet = ChunkPackets.encode(GameWorld().chunkAt(0, 0), includeSkyLight = true)
+    fun chunkOnlyIncludesSkyLightForSectionsWithBlocks() {
+        val world = GameWorld()
+        val chunk = world.chunkAt(0, 0)
+        val clearedY = WORLD_MIN_Y + 16
+        chunk.setBlock(0, clearedY, 0, Blocks.Stone.defaultState)
+        chunk.setBlock(0, clearedY, 0, Blocks.Air.defaultState)
 
-        assertEquals(SECTION_COUNT + 2, packet.skyLight.size)
-        assertTrue(packet.emptySkyLightMask.isEmpty())
+        val packet = ChunkPackets.encode(chunk, includeSkyLight = true)
+
+        assertEquals(1, packet.skyLight.size)
+        assertEquals(2048, packet.skyLight.single().size)
+        assertTrue(packet.skyLight.single().all { it == 0xFF.toShort() })
+        assertEquals(1, packet.skyLightMask.sumOf { java.lang.Long.bitCount(it) })
+        assertEquals(SECTION_COUNT + 1, packet.emptySkyLightMask.sumOf { java.lang.Long.bitCount(it) })
+        assertTrue(packet.skyLightMask.zip(packet.emptySkyLightMask).all { (present, empty) -> present and empty == 0L })
+
+        val floorLightSection = ((0 - WORLD_MIN_Y) shr 4) + 1
+        assertTrue(packet.skyLightMask[floorLightSection / 64] and (1L shl (floorLightSection % 64)) != 0L)
     }
 
     @Test

@@ -128,6 +128,5 @@ class OptraIxTargetTest {
                 )
             }
         }
-        assertTrue(BlockStates.lit[candidate.getBlock(BlockPos(7, 1, 0))] || true)
     }
 }
