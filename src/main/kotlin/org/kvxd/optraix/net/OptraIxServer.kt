@@ -24,7 +24,6 @@ import org.kvxd.optraix.nbt.compoundOf
 import org.kvxd.optraix.player.Player
 import org.kvxd.optraix.player.PlayerProfileStore
 import org.kvxd.optraix.redstone.RedstoneEngine
-import org.kvxd.optraix.redstone.mchprs.MchprsRedstone
 import org.kvxd.optraix.world.BlockEntity
 import org.kvxd.optraix.world.BlockEntityNbt
 import org.kvxd.optraix.world.BlockPos
@@ -108,6 +107,9 @@ import org.kvxd.optraix.mcdata.v1_20_4.Blocks
 import org.kvxd.optraix.world.management.RedstoneMode
 import org.kvxd.optraix.world.management.RedstoneStage
 import org.kvxd.optraix.world.management.RedstoneSubmission
+import org.kvxd.optraix.dh.DHService
+import org.kvxd.optraix.dh.net.DHProtocol
+import org.kvxd.kmcprotocol.packets.generated.v1_20_4.play.serverbound.ServerboundCustomPayloadPacket
 
 class OptraIxServer(val config: ServerConfig) {
 
@@ -158,6 +160,7 @@ class OptraIxServer(val config: ServerConfig) {
     private val compileExecutor = Executors.newSingleThreadExecutor { task ->
         Thread(task, "optraix-compile").apply { isDaemon = true }
     }
+    private val distantHorizons = DHService()
     private val protocol = Protocols.requireMinecraftVersion("1.20.4")
 
     fun submit(task: Runnable) {
@@ -274,6 +277,7 @@ class OptraIxServer(val config: ServerConfig) {
         socket = server
         boundPort = (server.localAddress as? InetSocketAddress)?.port ?: config.port
         println("optraix listening on ${config.host}:$boundPort (1.20.4, protocol 765)")
+        println("Distant Horizons 3.2 server support: enabled")
         if (viaVersion != null) println("ViaVersion ${ViaVersionRuntime.Version}: enabled")
         println("redstone engine: ${engine.name}, target tps: ${tpsLabel()}")
         println(
@@ -326,6 +330,7 @@ class OptraIxServer(val config: ServerConfig) {
             viaVersionRuntime = null
             compileExecutor.shutdownNow()
             compileExecutor.awaitTermination(ShutdownJoinMillis, TimeUnit.MILLISECONDS)
+            distantHorizons.close()
             for (runtime in worlds.all()) {
                 if (runtime.redstoneFrozen) {
                     (runtime.engine as? OptraIxEngine)?.reconcile(runtime.world)
@@ -1220,6 +1225,7 @@ class OptraIxServer(val config: ServerConfig) {
             player.moved = false
             player.connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
             updateChunks(player, force = true)
+            distantHorizons.worldChanged(player)
         }
 
         refreshSidebar(force = true)
@@ -1253,6 +1259,7 @@ class OptraIxServer(val config: ServerConfig) {
         player.lastChunkX = Int.MIN_VALUE
         player.lastChunkZ = Int.MIN_VALUE
         player.moved = false
+        distantHorizons.worldChanged(player)
 
         sendPosition(player)
         player.connection.send(ClientboundGameStateChangePacket(WaitForChunksReason, 0.0f))
@@ -1403,6 +1410,7 @@ class OptraIxServer(val config: ServerConfig) {
     fun removePlayer(player: Player) {
         val runtime = runtimeFor(player)
         if (!players.remove(player)) return
+        distantHorizons.disconnect(player)
         profiles.put(player)
         onlineCount = players.size
         player.clearHistory()
@@ -1553,6 +1561,9 @@ class OptraIxServer(val config: ServerConfig) {
                 commands.complete(player, packet.transactionId, packet.text)
 
             is ServerboundUpdateSignPacket -> handleSignUpdate(player, packet)
+            is ServerboundCustomPayloadPacket -> if (packet.channel == DHProtocol.Channel) {
+                distantHorizons.handle(player, world, packet.data)
+            }
             else -> Unit
         }
     }

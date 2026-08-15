@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.netty.all)
     implementation(libs.guava)
     implementation(libs.gson)
+    implementation(libs.xz)
 
     testImplementation(kotlin("test"))
 }

@@ -12,6 +12,10 @@ class Chunk(val x: Int, val z: Int) {
     @Volatile
     var wireData: ByteArray? = null
 
+    @Volatile
+    var revision: Long = 0
+        private set
+
     fun invalidateWire() {
         wireData = null
     }
@@ -38,7 +42,10 @@ class Chunk(val x: Int, val z: Int) {
         if (state == Blocks.Air.defaultState && sectionFor(y, false) == null) return false
         val section = sectionFor(y, true) ?: return false
         val changed = section.set(index(localX, y and 15, localZ), state)
-        if (changed) wireData = null
+        if (changed) {
+            wireData = null
+            revision++
+        }
         return changed
     }
 

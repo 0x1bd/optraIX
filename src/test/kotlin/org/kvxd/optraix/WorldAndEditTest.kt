@@ -17,6 +17,7 @@ import org.kvxd.kmcprotocol.extensions.chunk.ChunkFormat
 import org.kvxd.kmcprotocol.extensions.chunk.ChunkSections
 import java.io.File
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import org.kvxd.optraix.mcdata.v1_20_4.Blocks
@@ -260,6 +261,7 @@ class WorldAndEditTest {
 
         val packet = ChunkPackets.encode(chunk, includeSkyLight = true)
 
+        assertContentEquals(ChunkPackets.sectionData(GameWorld().chunkAt(0, 0)), packet.chunkData)
         assertEquals(1, packet.skyLight.size)
         assertEquals(2048, packet.skyLight.single().size)
         assertTrue(packet.skyLight.single().all { it == 0xFF.toShort() })

@@ -7,6 +7,7 @@ Superoptimized Minecraft server for computational redstone.
 - Highly optimized runtime redstone execution (capable of averaging 200M TPS on mattbatwings' Redstone Tetris)
 - Fast-ish compilation times
 - Built-in WorldEdit commands with schematic streaming for fast pastes
+- Built-in Distant Horizons 3.2 support
 
 ## Running
 
@@ -17,6 +18,11 @@ optraIX requires JDK 25 and a Minecraft 1.20.4 client.
 ```
 
 The server starts on `0.0.0.0:25565` and stores worlds, players, and schematics in `run/`.
+
+### Distant Horizons
+
+Install Distant Horizons 3.2 on a Minecraft 1.20.4 client. optraIX automatically negotiates the DH connection and
+generates requested LOD tiles in background workers.
 
 The following command line options are available:
 

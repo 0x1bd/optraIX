@@ -11,6 +11,7 @@ viaversion = "5.11.0"
 netty = "4.0.20.Final"
 guava = "17.0"
 gson = "2.14.0"
+xz = "1.12"
 
 [libraries]
 kmcprotocol-extensions = { module = "org.kvxd:kmcprotocol-extensions", version.ref = "kmcprotocol" }
@@ -22,6 +23,7 @@ viaversion-common = { module = "com.viaversion:viaversion-common", version.ref =
 netty-all = { module = "io.netty:netty-all", version.ref = "netty" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+xz = { module = "org.tukaani:xz", version.ref = "xz" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -72,9 +72,7 @@ object ChunkPackets {
         )
     }
 
-    private fun isAir(section: ChunkSection?): Boolean =
-        section == null ||
-                (section.bitsPerEntry == 0 && section.blockCount == 0 && section.palette[0] == Blocks.Air.defaultState)
+    private fun isAir(section: ChunkSection?): Boolean = section == null || section.blockCount == 0
 
     private fun wireSection(section: ChunkSection): WireChunkSection {
         val blockStates = when {
